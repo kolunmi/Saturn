@@ -25,6 +25,9 @@
 
 G_BEGIN_DECLS
 
+#define SATURN_PROVIDER_QUARK (saturn_provider_quark ())
+GQuark saturn_provider_quark (void);
+
 #define SATURN_TYPE_PROVIDER (saturn_provider_get_type ())
 G_DECLARE_INTERFACE (SaturnProvider, saturn_provider, SATURN, PROVIDER, GObject)
 
@@ -40,13 +43,13 @@ struct _SaturnProviderInterface
                         GObject        *object);
 
   void (*setup_list_item) (SaturnProvider *self,
-                           GtkListItem    *list_item);
+                           AdwBin         *list_item);
   void (*teardown_list_item) (SaturnProvider *self,
-                              GtkListItem    *list_item);
+                              AdwBin         *list_item);
   void (*bind_list_item) (SaturnProvider *self,
-                          GtkListItem    *list_item);
+                          AdwBin         *list_item);
   void (*unbind_list_item) (SaturnProvider *self,
-                            GtkListItem    *list_item);
+                            AdwBin         *list_item);
 
   void (*setup_preview) (SaturnProvider *self,
                          gpointer        object,
@@ -70,13 +73,13 @@ DexChannel *saturn_provider_query (SaturnProvider *self,
                                    GObject        *object);
 
 void saturn_provider_setup_list_item (SaturnProvider *self,
-                                      GtkListItem    *list_item);
+                                      AdwBin         *list_item);
 void saturn_provider_teardown_list_item (SaturnProvider *self,
-                                         GtkListItem    *list_item);
+                                         AdwBin         *list_item);
 void saturn_provider_bind_list_item (SaturnProvider *self,
-                                     GtkListItem    *list_item);
+                                     AdwBin         *list_item);
 void saturn_provider_unbind_list_item (SaturnProvider *self,
-                                       GtkListItem    *list_item);
+                                       AdwBin         *list_item);
 
 void saturn_provider_setup_preview (SaturnProvider *self,
                                     gpointer        object,

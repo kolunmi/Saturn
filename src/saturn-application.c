@@ -22,11 +22,14 @@
 #include <glib/gi18n.h>
 
 #include "saturn-application.h"
+#include "saturn-provider.h"
 #include "saturn-window.h"
 
 struct _SaturnApplication
 {
   AdwApplication parent_instance;
+
+  GListStore *providers;
 };
 
 G_DEFINE_FINAL_TYPE (SaturnApplication, saturn_application, ADW_TYPE_APPLICATION)
@@ -47,15 +50,18 @@ saturn_application_new (const char       *application_id,
 static void
 saturn_application_activate (GApplication *app)
 {
-  GtkWindow *window;
+  SaturnApplication *self   = NULL;
+  GtkWindow         *window = NULL;
 
   g_assert (SATURN_IS_APPLICATION (app));
 
+  self   = SATURN_APPLICATION (app);
   window = gtk_application_get_active_window (GTK_APPLICATION (app));
 
   if (window == NULL)
     window = g_object_new (SATURN_TYPE_WINDOW,
                            "application", app,
+                           "providers", self->providers,
                            NULL);
 
   gtk_window_present (window);
@@ -113,11 +119,15 @@ static const GActionEntry app_actions[] = {
 static void
 saturn_application_init (SaturnApplication *self)
 {
-  g_action_map_add_action_entries (G_ACTION_MAP (self),
-                                   app_actions,
-                                   G_N_ELEMENTS (app_actions),
-                                   self);
-  gtk_application_set_accels_for_action (GTK_APPLICATION (self),
-                                         "app.quit",
-                                         (const char *[]) { "<primary>q", NULL });
+  g_action_map_add_action_entries (
+      G_ACTION_MAP (self),
+      app_actions,
+      G_N_ELEMENTS (app_actions),
+      self);
+  gtk_application_set_accels_for_action (
+      GTK_APPLICATION (self),
+      "app.quit",
+      (const char *[]) { "<primary>q", NULL });
+
+  self->providers = g_list_store_new (SATURN_TYPE_PROVIDER);
 }

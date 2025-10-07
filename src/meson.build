@@ -13,7 +13,6 @@ saturn_sources = [
   'saturn-window.c',
   'saturn-provider.c',
 ]
-
 saturn_deps = [
   dependency('gtk4'),
   dependency('libadwaita-1', version: '>= 1.8'),
@@ -21,6 +20,7 @@ saturn_deps = [
   dependency('glycin-2', version: '>= 2.0'),
   dependency('glycin-gtk4-2', version: '>= 2.0'),
 ]
+subdir('providers')
 
 saturn_sources += gnome.compile_resources('saturn-resources',
   'saturn.gresource.xml',

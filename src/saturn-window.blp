@@ -9,21 +9,52 @@ template $SaturnWindow: Adw.ApplicationWindow {
   content: Adw.ToolbarView {
     [top]
     Adw.HeaderBar {
-      [end]
+      show-start-title-buttons: false;
+      show-end-title-buttons: false;
+
+      [start]
       MenuButton {
         primary: true;
         icon-name: "open-menu-symbolic";
         tooltip-text: _("Main Menu");
         menu-model: primary_menu;
       }
+
+      title-widget: Text {
+        halign: fill;
+        hexpand: true;
+        placeholder-text: _("Type to filter...");
+        changed => $text_changed_cb(template);
+      };
     }
 
-    content: Label label {
-      label: _("Hello, World!");
+    content: Box {
+      width-request: 200;
+      orientation: horizontal;
+      spacing: 10;
 
-      styles [
-        "title-1",
-      ]
+      ScrolledWindow {
+        hscrollbar-policy: never;
+        propagate-natural-height: true;
+
+        child: ListView {
+          styles [
+            "navigation-sidebar",
+          ]
+
+          single-click-activate: false;
+          tab-behavior: item;
+
+          model: SingleSelection selection {};
+
+          factory: SignalListItemFactory {
+            setup => $list_item_setup_cb(template);
+            teardown => $list_item_teardown_cb(template);
+            bind => $list_item_bind_cb(template);
+            unbind => $list_item_unbind_cb(template);
+          };
+        };
+      }
     };
   };
 }

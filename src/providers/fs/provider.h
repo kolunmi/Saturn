@@ -1,4 +1,4 @@
-/* saturn-window.h
+/* provider.h
  *
  * Copyright 2025 Eva
  *
@@ -20,19 +20,11 @@
 
 #pragma once
 
-#include <adwaita.h>
+#include <glib-object.h>
 
 G_BEGIN_DECLS
 
-#define SATURN_TYPE_WINDOW (saturn_window_get_type ())
-
-G_DECLARE_FINAL_TYPE (SaturnWindow, saturn_window, SATURN, WINDOW, AdwApplicationWindow)
-
-void
-saturn_window_set_providers (SaturnWindow *self,
-                             GListModel   *providers);
-
-GListModel *
-saturn_window_get_providers (SaturnWindow *self);
+#define SATURN_TYPE_FILE_SYSTEM_PROVIDER (saturn_file_system_provider_get_type ())
+G_DECLARE_FINAL_TYPE (SaturnFileSystemProvider, saturn_file_system_provider, SATURN, FILE_SYSTEM_PROVIDER, GObject)
 
 G_END_DECLS

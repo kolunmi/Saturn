@@ -20,6 +20,10 @@
 
 #include "saturn-provider.h"
 
+/* clang-format off */
+G_DEFINE_QUARK (saturn-provider-quark, saturn_provider);
+/* clang-format on */
+
 G_DEFINE_INTERFACE (SaturnProvider, saturn_provider, G_TYPE_OBJECT)
 
 static DexFuture *
@@ -47,25 +51,25 @@ saturn_provider_real_query (SaturnProvider *self,
 
 static void
 saturn_provider_real_setup_list_item (SaturnProvider *self,
-                                      GtkListItem    *list_item)
+                                      AdwBin         *list_item)
 {
 }
 
 static void
 saturn_provider_real_teardown_list_item (SaturnProvider *self,
-                                         GtkListItem    *list_item)
+                                         AdwBin         *list_item)
 {
 }
 
 static void
 saturn_provider_real_bind_list_item (SaturnProvider *self,
-                                     GtkListItem    *list_item)
+                                     AdwBin         *list_item)
 {
 }
 
 static void
 saturn_provider_real_unbind_list_item (SaturnProvider *self,
-                                       GtkListItem    *list_item)
+                                       AdwBin         *list_item)
 {
 }
 
@@ -141,10 +145,10 @@ saturn_provider_query (SaturnProvider *self,
 
 void
 saturn_provider_setup_list_item (SaturnProvider *self,
-                                 GtkListItem    *list_item)
+                                 AdwBin         *list_item)
 {
   g_return_if_fail (SATURN_IS_PROVIDER (self));
-  g_return_if_fail (GTK_IS_LIST_ITEM (list_item));
+  g_return_if_fail (ADW_IS_BIN (list_item));
 
   SATURN_PROVIDER_GET_IFACE (self)->setup_list_item (self,
                                                      list_item);
@@ -152,10 +156,10 @@ saturn_provider_setup_list_item (SaturnProvider *self,
 
 void
 saturn_provider_teardown_list_item (SaturnProvider *self,
-                                    GtkListItem    *list_item)
+                                    AdwBin         *list_item)
 {
   g_return_if_fail (SATURN_IS_PROVIDER (self));
-  g_return_if_fail (GTK_IS_LIST_ITEM (list_item));
+  g_return_if_fail (ADW_IS_BIN (list_item));
 
   SATURN_PROVIDER_GET_IFACE (self)->teardown_list_item (self,
                                                         list_item);
@@ -163,10 +167,10 @@ saturn_provider_teardown_list_item (SaturnProvider *self,
 
 void
 saturn_provider_bind_list_item (SaturnProvider *self,
-                                GtkListItem    *list_item)
+                                AdwBin         *list_item)
 {
   g_return_if_fail (SATURN_IS_PROVIDER (self));
-  g_return_if_fail (GTK_IS_LIST_ITEM (list_item));
+  g_return_if_fail (ADW_IS_BIN (list_item));
 
   SATURN_PROVIDER_GET_IFACE (self)->bind_list_item (self,
                                                     list_item);
@@ -174,10 +178,10 @@ saturn_provider_bind_list_item (SaturnProvider *self,
 
 void
 saturn_provider_unbind_list_item (SaturnProvider *self,
-                                  GtkListItem    *list_item)
+                                  AdwBin         *list_item)
 {
   g_return_if_fail (SATURN_IS_PROVIDER (self));
-  g_return_if_fail (GTK_IS_LIST_ITEM (list_item));
+  g_return_if_fail (ADW_IS_BIN (list_item));
 
   SATURN_PROVIDER_GET_IFACE (self)->unbind_list_item (self,
                                                       list_item);
