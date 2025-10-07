@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=saturn
+Exec=saturn
+Icon=io.github.kolunmi.Saturn
+Terminal=false
+Type=Application
+Categories=Utility;
+Keywords=GTK;
+StartupNotify=true
+DBusActivatable=true

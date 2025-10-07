@@ -1,0 +1,8 @@
+# List of source files containing translatable strings.
+# Please keep this file sorted alphabetically.
+data/io.github.kolunmi.Saturn.desktop.in
+data/io.github.kolunmi.Saturn.metainfo.xml.in
+data/io.github.kolunmi.Saturn.gschema.xml
+src/main.c
+src/saturn-window.c
+src/saturn-window.blp
