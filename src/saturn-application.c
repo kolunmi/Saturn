@@ -25,11 +25,14 @@
 #include "saturn-provider.h"
 #include "saturn-window.h"
 
+#include "providers/fs/provider.h"
+
 struct _SaturnApplication
 {
   AdwApplication parent_instance;
 
   GListStore *providers;
+  GPtrArray  *inits;
 };
 
 G_DEFINE_FINAL_TYPE (SaturnApplication, saturn_application, ADW_TYPE_APPLICATION)
@@ -119,6 +122,9 @@ static const GActionEntry app_actions[] = {
 static void
 saturn_application_init (SaturnApplication *self)
 {
+  g_autoptr (SaturnFileSystemProvider) fs = NULL;
+  guint n_providers                       = 0;
+
   g_action_map_add_action_entries (
       G_ACTION_MAP (self),
       app_actions,
@@ -129,5 +135,18 @@ saturn_application_init (SaturnApplication *self)
       "app.quit",
       (const char *[]) { "<primary>q", NULL });
 
+  fs = g_object_new (SATURN_TYPE_FILE_SYSTEM_PROVIDER, NULL);
+
   self->providers = g_list_store_new (SATURN_TYPE_PROVIDER);
+  g_list_store_append (self->providers, fs);
+
+  self->inits = g_ptr_array_new_with_free_func (dex_unref);
+  n_providers = g_list_model_get_n_items (G_LIST_MODEL (self->providers));
+  for (guint i = 0; i < n_providers; i++)
+    {
+      g_autoptr (SaturnProvider) provider = NULL;
+
+      provider = g_list_model_get_item (G_LIST_MODEL (self->providers), i);
+      g_ptr_array_add (self->inits, saturn_provider_init_global (provider));
+    }
 }

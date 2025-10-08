@@ -36,6 +36,7 @@ struct _SaturnWindow
   DexFuture  *task;
 
   /* Template widgets */
+  GtkLabel           *status_label;
   GtkSingleSelection *selection;
 };
 
@@ -170,7 +171,7 @@ list_item_bind_cb (SaturnWindow             *self,
     return;
 
   bin = gtk_list_item_get_child (list_item);
-  saturn_provider_bind_list_item (provider, ADW_BIN (bin));
+  saturn_provider_bind_list_item (provider, item, ADW_BIN (bin));
 }
 
 static void
@@ -188,7 +189,7 @@ list_item_unbind_cb (SaturnWindow             *self,
     return;
 
   bin = gtk_list_item_get_child (list_item);
-  saturn_provider_unbind_list_item (provider, ADW_BIN (bin));
+  saturn_provider_unbind_list_item (provider, item, ADW_BIN (bin));
 }
 
 static void
@@ -211,6 +212,7 @@ saturn_window_class_init (SaturnWindowClass *klass)
   g_object_class_install_properties (object_class, LAST_PROP, props);
 
   gtk_widget_class_set_template_from_resource (widget_class, "/io/github/kolunmi/Saturn/saturn-window.ui");
+  gtk_widget_class_bind_template_child (widget_class, SaturnWindow, status_label);
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, selection);
   gtk_widget_class_bind_template_callback (widget_class, text_changed_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_setup_cb);
@@ -280,6 +282,7 @@ query_fiber (QueryData *data)
     {
       g_autoptr (GPtrArray) futures = NULL;
       g_autoptr (GObject) object    = NULL;
+      g_autofree char *status       = NULL;
 
       futures = g_ptr_array_new_with_free_func (dex_unref);
       for (guint i = 0; i < channels->len;)
@@ -307,6 +310,13 @@ query_fiber (QueryData *data)
         break;
 
       g_list_store_append (self->model, object);
+
+      status = g_strdup_printf (
+          "%d",
+          g_list_model_get_n_items (G_LIST_MODEL (self->model)));
+      gtk_label_set_label (self->status_label, status);
+
+      dex_await (dex_timeout_new_usec (1), NULL);
     }
 
   return dex_future_new_true ();

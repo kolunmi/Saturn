@@ -9,6 +9,7 @@ template $SaturnWindow: Adw.ApplicationWindow {
   content: Adw.ToolbarView {
     [top]
     Adw.HeaderBar {
+      show-title: false;
       show-start-title-buttons: false;
       show-end-title-buttons: false;
 
@@ -20,12 +21,21 @@ template $SaturnWindow: Adw.ApplicationWindow {
         menu-model: primary_menu;
       }
 
-      title-widget: Text {
+      [start]
+      Text {
         halign: fill;
         hexpand: true;
         placeholder-text: _("Type to filter...");
         changed => $text_changed_cb(template);
-      };
+      }
+
+      [end]
+      Label status_label {
+        styles [
+          "heading",
+        ]
+        xalign: 1.0;
+      }
     }
 
     content: Box {
@@ -34,6 +44,7 @@ template $SaturnWindow: Adw.ApplicationWindow {
       spacing: 10;
 
       ScrolledWindow {
+        hexpand: true;
         hscrollbar-policy: never;
         propagate-natural-height: true;
 

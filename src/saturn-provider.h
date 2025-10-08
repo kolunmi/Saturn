@@ -47,8 +47,10 @@ struct _SaturnProviderInterface
   void (*teardown_list_item) (SaturnProvider *self,
                               AdwBin         *list_item);
   void (*bind_list_item) (SaturnProvider *self,
+                          gpointer        object,
                           AdwBin         *list_item);
   void (*unbind_list_item) (SaturnProvider *self,
+                            gpointer        object,
                             AdwBin         *list_item);
 
   void (*setup_preview) (SaturnProvider *self,
@@ -73,12 +75,16 @@ DexChannel *saturn_provider_query (SaturnProvider *self,
                                    GObject        *object);
 
 void saturn_provider_setup_list_item (SaturnProvider *self,
+                                      gpointer        object,
                                       AdwBin         *list_item);
 void saturn_provider_teardown_list_item (SaturnProvider *self,
+                                         gpointer        object,
                                          AdwBin         *list_item);
 void saturn_provider_bind_list_item (SaturnProvider *self,
+                                     gpointer        object,
                                      AdwBin         *list_item);
 void saturn_provider_unbind_list_item (SaturnProvider *self,
+                                       gpointer        object,
                                        AdwBin         *list_item);
 
 void saturn_provider_setup_preview (SaturnProvider *self,

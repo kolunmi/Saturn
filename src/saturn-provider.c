@@ -63,12 +63,14 @@ saturn_provider_real_teardown_list_item (SaturnProvider *self,
 
 static void
 saturn_provider_real_bind_list_item (SaturnProvider *self,
+                                     gpointer        object,
                                      AdwBin         *list_item)
 {
 }
 
 static void
 saturn_provider_real_unbind_list_item (SaturnProvider *self,
+                                       gpointer        object,
                                        AdwBin         *list_item)
 {
 }
@@ -145,6 +147,7 @@ saturn_provider_query (SaturnProvider *self,
 
 void
 saturn_provider_setup_list_item (SaturnProvider *self,
+                                 gpointer        object,
                                  AdwBin         *list_item)
 {
   g_return_if_fail (SATURN_IS_PROVIDER (self));
@@ -156,6 +159,7 @@ saturn_provider_setup_list_item (SaturnProvider *self,
 
 void
 saturn_provider_teardown_list_item (SaturnProvider *self,
+                                    gpointer        object,
                                     AdwBin         *list_item)
 {
   g_return_if_fail (SATURN_IS_PROVIDER (self));
@@ -167,23 +171,27 @@ saturn_provider_teardown_list_item (SaturnProvider *self,
 
 void
 saturn_provider_bind_list_item (SaturnProvider *self,
+                                gpointer        object,
                                 AdwBin         *list_item)
 {
   g_return_if_fail (SATURN_IS_PROVIDER (self));
   g_return_if_fail (ADW_IS_BIN (list_item));
 
   SATURN_PROVIDER_GET_IFACE (self)->bind_list_item (self,
+                                                    object,
                                                     list_item);
 }
 
 void
 saturn_provider_unbind_list_item (SaturnProvider *self,
+                                  gpointer        object,
                                   AdwBin         *list_item)
 {
   g_return_if_fail (SATURN_IS_PROVIDER (self));
   g_return_if_fail (ADW_IS_BIN (list_item));
 
   SATURN_PROVIDER_GET_IFACE (self)->unbind_list_item (self,
+                                                      object,
                                                       list_item);
 }
 
