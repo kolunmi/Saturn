@@ -58,6 +58,7 @@ template $SaturnWindow: Adw.ApplicationWindow {
 
           model: SingleSelection selection {
             notify::selected => $selected_changed_cb(template);
+            notify::selected-item => $selected_item_changed_cb(template);
           };
 
           factory: SignalListItemFactory {

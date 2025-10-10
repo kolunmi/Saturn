@@ -53,6 +53,8 @@ struct _SaturnWindow
   guint      debounce;
   DexFuture *make_preview;
 
+  gboolean explicit_select;
+
   /* Template widgets */
   GtkLabel           *status_label;
   GtkSingleSelection *selection;
@@ -209,6 +211,14 @@ selected_changed_cb (SaturnWindow       *self,
 }
 
 static void
+selected_item_changed_cb (SaturnWindow       *self,
+                          GParamSpec         *pspec,
+                          GtkSingleSelection *selection)
+{
+  self->explicit_select = TRUE;
+}
+
+static void
 list_item_setup_cb (SaturnWindow             *self,
                     GtkListItem              *list_item,
                     GtkSignalListItemFactory *factory)
@@ -286,6 +296,7 @@ saturn_window_class_init (SaturnWindowClass *klass)
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, preview_bin);
   gtk_widget_class_bind_template_callback (widget_class, text_changed_cb);
   gtk_widget_class_bind_template_callback (widget_class, selected_changed_cb);
+  gtk_widget_class_bind_template_callback (widget_class, selected_item_changed_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_setup_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_teardown_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_bind_cb);
@@ -331,6 +342,8 @@ query_fiber (QueryData *data)
   g_autoptr (GPtrArray) channels = NULL;
 
   g_list_store_remove_all (self->model);
+  self->explicit_select = FALSE;
+
   if (data->query == NULL)
     {
       gtk_label_set_label (self->status_label, _ ("Waiting"));
@@ -381,16 +394,28 @@ query_fiber (QueryData *data)
           guint            n_items     = 0;
           g_autofree char *status_text = NULL;
 
+          g_signal_handlers_block_by_func (
+              self->selection,
+              selected_item_changed_cb,
+              self);
+
           g_list_store_insert_sorted (
               self->model,
               object,
               (GCompareDataFunc) cmp_item,
               data->query);
-          gtk_list_view_scroll_to (
-              self->list_view,
-              0,
-              GTK_LIST_SCROLL_NONE,
-              NULL);
+
+          if (!self->explicit_select)
+            gtk_list_view_scroll_to (
+                self->list_view,
+                0,
+                GTK_LIST_SCROLL_SELECT,
+                NULL);
+
+          g_signal_handlers_unblock_by_func (
+              self->selection,
+              selected_item_changed_cb,
+              self);
 
           n_items     = g_list_model_get_n_items (G_LIST_MODEL (self->model));
           status_text = g_strdup_printf (_ ("%'d"), n_items);
