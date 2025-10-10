@@ -271,6 +271,39 @@ list_item_unbind_cb (SaturnWindow             *self,
 }
 
 static void
+action_move (GtkWidget  *widget,
+             const char *action_name,
+             GVariant   *parameter)
+{
+  SaturnWindow *self         = SATURN_WINDOW (widget);
+  guint         selected     = 0;
+  guint         n_items      = 0;
+  guint         new_selected = 0;
+
+  selected = gtk_single_selection_get_selected (self->selection);
+  n_items  = g_list_model_get_n_items (G_LIST_MODEL (self->selection));
+
+  if (selected == GTK_INVALID_LIST_POSITION)
+    new_selected = 0;
+  else
+    {
+      int offset = 0;
+
+      offset = g_variant_get_int32 (parameter);
+      if (offset < 0 && ABS (offset) > selected)
+        new_selected = n_items + (offset % -(int) n_items);
+      else
+        new_selected = (selected + offset) % n_items;
+    }
+
+  gtk_list_view_scroll_to (
+      self->list_view,
+      new_selected,
+      GTK_LIST_SCROLL_SELECT,
+      NULL);
+}
+
+static void
 saturn_window_class_init (SaturnWindowClass *klass)
 {
   GObjectClass   *object_class = G_OBJECT_CLASS (klass);
@@ -301,6 +334,7 @@ saturn_window_class_init (SaturnWindowClass *klass)
   gtk_widget_class_bind_template_callback (widget_class, list_item_teardown_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_bind_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_unbind_cb);
+  gtk_widget_class_install_action (widget_class, "move", "i", action_move);
 }
 
 static void
