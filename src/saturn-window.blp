@@ -48,7 +48,7 @@ template $SaturnWindow: Adw.ApplicationWindow {
         hscrollbar-policy: never;
         propagate-natural-height: true;
 
-        child: ListView {
+        child: ListView list_view {
           styles [
             "navigation-sidebar",
           ]
@@ -70,6 +70,7 @@ template $SaturnWindow: Adw.ApplicationWindow {
       }
 
       Adw.Bin preview_bin {
+        width-request: 250;
         hexpand: true;
       }
     };

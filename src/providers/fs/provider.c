@@ -291,6 +291,7 @@ provider_bind_preview (SaturnProvider *self,
           g_bytes_get_data (bytes, NULL), -1);
 
       view = gtk_text_view_new_with_buffer (buffer);
+      gtk_text_view_set_editable (GTK_TEXT_VIEW (view), FALSE);
       gtk_widget_add_css_class (view, "monospace");
 
       window = gtk_scrolled_window_new ();

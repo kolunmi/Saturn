@@ -56,6 +56,7 @@ struct _SaturnWindow
   /* Template widgets */
   GtkLabel           *status_label;
   GtkSingleSelection *selection;
+  GtkListView        *list_view;
   AdwBin             *preview_bin;
 };
 
@@ -177,9 +178,7 @@ make_preview_fiber (SaturnWindow *self)
   if (provider == NULL)
     return dex_future_new_true ();
 
-  adw_bin_set_child (self->preview_bin, NULL);
   saturn_provider_bind_preview (provider, item, self->preview_bin);
-
   return dex_future_new_true ();
 }
 
@@ -283,6 +282,7 @@ saturn_window_class_init (SaturnWindowClass *klass)
   gtk_widget_class_set_template_from_resource (widget_class, "/io/github/kolunmi/Saturn/saturn-window.ui");
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, status_label);
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, selection);
+  gtk_widget_class_bind_template_child (widget_class, SaturnWindow, list_view);
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, preview_bin);
   gtk_widget_class_bind_template_callback (widget_class, text_changed_cb);
   gtk_widget_class_bind_template_callback (widget_class, selected_changed_cb);
@@ -386,6 +386,11 @@ query_fiber (QueryData *data)
               object,
               (GCompareDataFunc) cmp_item,
               data->query);
+          gtk_list_view_scroll_to (
+              self->list_view,
+              0,
+              GTK_LIST_SCROLL_NONE,
+              NULL);
 
           n_items     = g_list_model_get_n_items (G_LIST_MODEL (self->model));
           status_text = g_strdup_printf (_ ("%'d"), n_items);
