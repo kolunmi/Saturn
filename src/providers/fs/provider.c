@@ -47,6 +47,7 @@ SATURN_DEFINE_DATA (
     work,
     Work,
     {
+      gboolean    active;
       GMutex      mutex;
       GHashTable *paths;
       DexChannel *channel;
@@ -71,7 +72,6 @@ struct _SaturnFileSystemProvider
 
   DexFuture *work;
   WorkData  *data;
-  DexFuture *query;
 };
 
 static void
@@ -113,7 +113,6 @@ saturn_file_system_provider_dispose (GObject *object)
   SaturnFileSystemProvider *self = SATURN_FILE_SYSTEM_PROVIDER (object);
 
   dex_clear (&self->work);
-  dex_clear (&self->query);
   g_clear_pointer (&self->data, work_data_unref);
 
   G_OBJECT_CLASS (saturn_file_system_provider_parent_class)->dispose (object);
@@ -148,6 +147,10 @@ provider_init_global (SaturnProvider *provider)
 {
   SaturnFileSystemProvider *self = SATURN_FILE_SYSTEM_PROVIDER (provider);
 
+  g_mutex_lock (&self->data->mutex);
+  self->data->active = TRUE;
+  g_mutex_unlock (&self->data->mutex);
+
   dex_clear (&self->work);
   self->work = dex_scheduler_spawn (
       dex_thread_pool_scheduler_get_default (),
@@ -164,8 +167,6 @@ provider_query (SaturnProvider *provider,
   SaturnFileSystemProvider *self = SATURN_FILE_SYSTEM_PROVIDER (provider);
   g_autoptr (DexChannel) channel = NULL;
 
-  dex_clear (&self->query);
-
   channel = dex_channel_new (1);
   if (GTK_IS_STRING_OBJECT (object))
     {
@@ -177,10 +178,10 @@ provider_query (SaturnProvider *provider,
       data->channel   = dex_ref (channel);
       data->object    = g_object_ref (object);
 
-      self->query = dex_scheduler_spawn (
+      dex_future_disown (dex_scheduler_spawn (
           dex_thread_pool_scheduler_get_default (),
           0, (DexFiberFunc) query_fiber,
-          query_data_ref (data), query_data_unref);
+          query_data_ref (data), query_data_unref));
     }
   else
     dex_channel_close_send (channel);
@@ -188,18 +189,61 @@ provider_query (SaturnProvider *provider,
   return g_steal_pointer (&channel);
 }
 
+static gsize
+provider_score (SaturnProvider *self,
+                gpointer        item,
+                GObject        *query)
+{
+  const char      *search   = NULL;
+  g_autofree char *basename = NULL;
+  gsize            score    = 0;
+
+  if (!GTK_IS_STRING_OBJECT (query))
+    return 0;
+
+  search   = gtk_string_object_get_string (GTK_STRING_OBJECT (query));
+  basename = g_file_get_basename (G_FILE (item));
+
+  score = G_MAXSIZE / strlen (basename) * strlen (search);
+  g_object_set_qdata (
+      G_OBJECT (item),
+      SATURN_PROVIDER_SCORE_QUARK,
+      GSIZE_TO_POINTER (score));
+
+  return score;
+}
+
 static void
 provider_bind_list_item (SaturnProvider *self,
                          gpointer        object,
                          AdwBin         *list_item)
 {
-  GtkWidget *label = NULL;
+  g_autofree char *basename    = NULL;
+  g_autoptr (GFile) parent     = NULL;
+  g_autofree char *parent_path = NULL;
+  GtkWidget       *left_label  = NULL;
+  GtkWidget       *right_label = NULL;
+  GtkWidget       *center_box  = NULL;
 
-  label = gtk_label_new (g_file_get_path (object));
-  gtk_label_set_xalign (GTK_LABEL (label), 0.0);
-  gtk_label_set_ellipsize (GTK_LABEL (label), PANGO_ELLIPSIZE_END);
+  basename = g_file_get_basename (G_FILE (object));
 
-  adw_bin_set_child (list_item, label);
+  parent      = g_file_get_parent (G_FILE (object));
+  parent_path = g_file_get_path (parent);
+
+  left_label = gtk_label_new (basename);
+  gtk_label_set_xalign (GTK_LABEL (left_label), 0.0);
+  gtk_label_set_ellipsize (GTK_LABEL (left_label), PANGO_ELLIPSIZE_END);
+
+  right_label = gtk_label_new (parent_path);
+  gtk_label_set_xalign (GTK_LABEL (right_label), 1.0);
+  gtk_label_set_ellipsize (GTK_LABEL (right_label), PANGO_ELLIPSIZE_END);
+  gtk_widget_add_css_class (right_label, "dimmed");
+
+  center_box = gtk_center_box_new ();
+  gtk_center_box_set_start_widget (GTK_CENTER_BOX (center_box), left_label);
+  gtk_center_box_set_end_widget (GTK_CENTER_BOX (center_box), right_label);
+
+  adw_bin_set_child (list_item, center_box);
 }
 
 static void
@@ -214,6 +258,7 @@ provider_iface_init (SaturnProviderInterface *iface)
 {
   iface->init_global      = provider_init_global;
   iface->query            = provider_query;
+  iface->score            = provider_score;
   iface->bind_list_item   = provider_bind_list_item;
   iface->unbind_list_item = provider_unbind_list_item;
 }
@@ -240,6 +285,16 @@ work_fiber (WorkData *data)
 
   g_hash_table_replace (data->paths, g_strdup (home), g_ptr_array_ref (array));
   work_recurse (data, file, array);
+
+  g_mutex_lock (&data->mutex);
+  if (data->channel != NULL)
+    {
+      dex_channel_close_send (data->channel);
+      dex_clear (&data->channel);
+      g_clear_pointer (&data->query, g_free);
+    }
+  data->active = FALSE;
+  g_mutex_unlock (&data->mutex);
 
   return dex_future_new_true ();
 }
@@ -348,9 +403,6 @@ query_fiber (QueryData *data)
   dex_clear (&data->work_data->channel);
   g_clear_pointer (&data->work_data->query, g_free);
 
-  data->work_data->channel = dex_ref (data->channel);
-  data->work_data->query   = g_strdup (query);
-
   g_hash_table_iter_init (&iter, data->work_data->paths);
   for (;;)
     {
@@ -383,6 +435,14 @@ query_fiber (QueryData *data)
             return dex_future_new_false ();
         }
     }
+
+  if (data->work_data->active)
+    {
+      data->work_data->channel = dex_ref (data->channel);
+      data->work_data->query   = g_strdup (query);
+    }
+  else
+    dex_channel_close_send (data->channel);
 
   return dex_future_new_true ();
 }

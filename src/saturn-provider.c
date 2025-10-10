@@ -22,6 +22,7 @@
 
 /* clang-format off */
 G_DEFINE_QUARK (saturn-provider-quark, saturn_provider);
+G_DEFINE_QUARK (saturn-provider-score-quark, saturn_provider_score);
 /* clang-format on */
 
 G_DEFINE_INTERFACE (SaturnProvider, saturn_provider, G_TYPE_OBJECT)
@@ -47,6 +48,14 @@ saturn_provider_real_query (SaturnProvider *self,
   channel = dex_channel_new (0);
   dex_channel_close_send (channel);
   return g_steal_pointer (&channel);
+}
+
+static gsize
+saturn_provider_real_score (SaturnProvider *self,
+                            gpointer        item,
+                            GObject        *query)
+{
+  return 0;
 }
 
 static void
@@ -109,6 +118,7 @@ saturn_provider_default_init (SaturnProviderInterface *iface)
   iface->init_global        = saturn_provider_real_init_global;
   iface->deinit_global      = saturn_provider_real_deinit_global;
   iface->query              = saturn_provider_real_query;
+  iface->score              = saturn_provider_real_score;
   iface->setup_list_item    = saturn_provider_real_setup_list_item;
   iface->teardown_list_item = saturn_provider_real_teardown_list_item;
   iface->bind_list_item     = saturn_provider_real_bind_list_item;
@@ -140,9 +150,23 @@ saturn_provider_query (SaturnProvider *self,
                        GObject        *object)
 {
   g_return_val_if_fail (SATURN_IS_PROVIDER (self), NULL);
-  g_return_val_if_fail (G_IS_OBJECT (self), NULL);
+  g_return_val_if_fail (G_IS_OBJECT (object), NULL);
 
   return SATURN_PROVIDER_GET_IFACE (self)->query (self, object);
+}
+
+gsize
+saturn_provider_score (SaturnProvider *self,
+                       gpointer        item,
+                       GObject        *query)
+{
+  g_return_val_if_fail (SATURN_IS_PROVIDER (self), 0);
+  g_return_val_if_fail (G_IS_OBJECT (item), 0);
+  g_return_val_if_fail (G_IS_OBJECT (query), 0);
+
+  return SATURN_PROVIDER_GET_IFACE (self)->score (self,
+                                                  item,
+                                                  query);
 }
 
 void

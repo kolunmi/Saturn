@@ -19,6 +19,7 @@
  */
 
 #include "config.h"
+#include <glib/gi18n.h>
 
 #include <libdex.h>
 
@@ -26,14 +27,28 @@
 #include "saturn-window.h"
 #include "util.h"
 
+SATURN_DEFINE_DATA (
+    query,
+    Query,
+    {
+      SaturnWindow *self;
+      gpointer      query;
+    },
+    SATURN_RELEASE_DATA (query, g_object_unref));
+
+static DexFuture *
+query_fiber (QueryData *data);
+
 struct _SaturnWindow
 {
   AdwApplicationWindow parent_instance;
 
   GListModel *providers;
 
-  GListStore *model;
-  DexFuture  *task;
+  GListStore     *model;
+  DexFuture      *task;
+  QueryData      *task_data;
+  DexCancellable *cancel;
 
   /* Template widgets */
   GtkLabel           *status_label;
@@ -52,18 +67,10 @@ enum
 };
 static GParamSpec *props[LAST_PROP] = { 0 };
 
-SATURN_DEFINE_DATA (
-    query,
-    Query,
-    {
-      GWeakRef self;
-      gpointer query;
-    },
-    g_weak_ref_clear (&self->self);
-    SATURN_RELEASE_DATA (query, g_object_unref))
-
-static DexFuture *
-query_fiber (QueryData *data);
+static gint
+cmp_item (GObject *a,
+          GObject *b,
+          GObject *query);
 
 static void
 saturn_window_dispose (GObject *object)
@@ -72,8 +79,11 @@ saturn_window_dispose (GObject *object)
 
   g_clear_object (&self->providers);
 
-  g_clear_object (&self->model);
   dex_clear (&self->task);
+  dex_clear (&self->cancel);
+
+  g_clear_object (&self->model);
+  g_clear_pointer (&self->task_data, query_data_unref);
 
   G_OBJECT_CLASS (saturn_window_parent_class)->dispose (object);
 }
@@ -122,18 +132,24 @@ text_changed_cb (SaturnWindow *self,
   g_autoptr (GtkStringObject) string = NULL;
   g_autoptr (QueryData) data         = NULL;
 
-  dex_clear (&self->task);
-  g_list_store_remove_all (self->model);
+  g_clear_pointer (&self->task_data, query_data_unref);
+
+  if (self->cancel != NULL)
+    dex_cancellable_cancel (self->cancel);
 
   text = gtk_editable_get_text (editable);
-  if (text == NULL || *text == '\0')
-    return;
-  string = gtk_string_object_new (text);
+  if (text != NULL && *text != '\0')
+    string = gtk_string_object_new (text);
 
-  data = query_data_new ();
-  g_weak_ref_init (&data->self, self);
-  data->query = g_object_ref (string);
+  data        = query_data_new ();
+  data->self  = self;
+  data->query = string != NULL ? g_object_ref (string) : NULL;
 
+  self->task_data = query_data_ref (data);
+  dex_clear (&self->cancel);
+  self->cancel = dex_cancellable_new ();
+
+  dex_clear (&self->task);
   self->task = dex_scheduler_spawn (
       dex_scheduler_get_default (),
       0, (DexFiberFunc) query_fiber,
@@ -254,14 +270,17 @@ saturn_window_get_providers (SaturnWindow *self)
 static DexFuture *
 query_fiber (QueryData *data)
 {
-  g_autoptr (SaturnWindow) self  = NULL;
-  gpointer query                 = data->query;
-  guint    n_providers           = 0;
+  SaturnWindow *self             = data->self;
+  g_autoptr (GError) local_error = NULL;
+  guint n_providers              = 0;
   g_autoptr (GPtrArray) channels = NULL;
 
-  self = g_weak_ref_get (&data->self);
-  if (self == NULL || self->providers == NULL)
-    return NULL;
+  g_list_store_remove_all (self->model);
+  if (data->query == NULL)
+    {
+      gtk_label_set_label (self->status_label, _ ("Waiting"));
+      return dex_future_new_true ();
+    }
 
   n_providers = g_list_model_get_n_items (self->providers);
   channels    = g_ptr_array_new_with_free_func (dex_unref);
@@ -272,52 +291,97 @@ query_fiber (QueryData *data)
       g_autoptr (DexChannel) channel      = NULL;
 
       provider = g_list_model_get_item (self->providers, i);
-      channel  = saturn_provider_query (provider, query);
+      channel  = saturn_provider_query (provider, data->query);
 
       if (channel != NULL)
-        g_ptr_array_add (channels, g_steal_pointer (&channel));
+        g_ptr_array_add (channels, dex_ref (channel));
     }
 
   for (;;)
     {
       g_autoptr (GPtrArray) futures = NULL;
       g_autoptr (GObject) object    = NULL;
-      g_autofree char *status       = NULL;
 
       futures = g_ptr_array_new_with_free_func (dex_unref);
-      for (guint i = 0; i < channels->len;)
+      g_ptr_array_add (futures, dex_ref (self->cancel));
+
+      for (guint i = 0; i < channels->len; i++)
         {
           DexChannel *channel = NULL;
 
           channel = g_ptr_array_index (channels, i);
-          if (dex_channel_can_receive (channel))
-            {
-              g_ptr_array_add (futures, dex_channel_receive (channel));
-              i++;
-            }
-          else
-            g_ptr_array_remove_index (channels, i);
+          g_ptr_array_add (futures, dex_channel_receive (channel));
         }
-      if (futures->len == 0)
-        break;
 
       object = dex_await_object (
           dex_future_anyv (
               (DexFuture *const *) futures->pdata,
               futures->len),
           NULL);
-      if (object == NULL)
+      if (data != self->task_data)
         break;
 
-      g_list_store_append (self->model, object);
+      if (object != NULL)
+        {
+          guint            n_items     = 0;
+          g_autofree char *status_text = NULL;
 
-      status = g_strdup_printf (
-          "%d",
-          g_list_model_get_n_items (G_LIST_MODEL (self->model)));
-      gtk_label_set_label (self->status_label, status);
+          g_list_store_insert_sorted (
+              self->model,
+              object,
+              (GCompareDataFunc) cmp_item,
+              data->query);
+
+          n_items     = g_list_model_get_n_items (G_LIST_MODEL (self->model));
+          status_text = g_strdup_printf (_ ("%'d"), n_items);
+          gtk_label_set_label (self->status_label, status_text);
+        }
+      else
+        break;
 
       dex_await (dex_timeout_new_usec (1), NULL);
+      if (data != self->task_data)
+        break;
+    }
+
+  for (guint i = 0; i < channels->len; i++)
+    {
+      DexChannel *channel = NULL;
+
+      channel = g_ptr_array_index (channels, i);
+      dex_channel_close_receive (channel);
     }
 
   return dex_future_new_true ();
+}
+
+static gint
+cmp_item (GObject *a,
+          GObject *b,
+          GObject *query)
+{
+  gsize a_score = 0;
+  gsize b_score = 0;
+
+  a_score = GPOINTER_TO_SIZE (g_object_get_qdata (a, SATURN_PROVIDER_SCORE_QUARK));
+  b_score = GPOINTER_TO_SIZE (g_object_get_qdata (b, SATURN_PROVIDER_SCORE_QUARK));
+
+  /* TODO: if same provider, have a special cmp impl func? */
+
+  if (a_score == 0)
+    {
+      SaturnProvider *provider = NULL;
+
+      provider = g_object_get_qdata (a, SATURN_PROVIDER_QUARK);
+      saturn_provider_score (provider, a, query);
+    }
+  if (b_score == 0)
+    {
+      SaturnProvider *provider = NULL;
+
+      provider = g_object_get_qdata (b, SATURN_PROVIDER_QUARK);
+      saturn_provider_score (provider, b, query);
+    }
+
+  return a_score > b_score ? -1 : 1;
 }

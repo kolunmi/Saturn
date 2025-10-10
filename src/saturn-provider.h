@@ -28,6 +28,9 @@ G_BEGIN_DECLS
 #define SATURN_PROVIDER_QUARK (saturn_provider_quark ())
 GQuark saturn_provider_quark (void);
 
+#define SATURN_PROVIDER_SCORE_QUARK (saturn_provider_score_quark ())
+GQuark saturn_provider_score_quark (void);
+
 #define SATURN_TYPE_PROVIDER (saturn_provider_get_type ())
 G_DECLARE_INTERFACE (SaturnProvider, saturn_provider, SATURN, PROVIDER, GObject)
 
@@ -41,6 +44,9 @@ struct _SaturnProviderInterface
   /* Provider must close sending side of channel when done */
   DexChannel *(*query) (SaturnProvider *self,
                         GObject        *object);
+  gsize (*score) (SaturnProvider *self,
+                  gpointer        item,
+                  GObject        *query);
 
   void (*setup_list_item) (SaturnProvider *self,
                            AdwBin         *list_item);
@@ -73,6 +79,10 @@ DexFuture *saturn_provider_deinit_global (SaturnProvider *self);
 
 DexChannel *saturn_provider_query (SaturnProvider *self,
                                    GObject        *object);
+
+gsize saturn_provider_score (SaturnProvider *self,
+                             gpointer        item,
+                             GObject        *query);
 
 void saturn_provider_setup_list_item (SaturnProvider *self,
                                       gpointer        object,
