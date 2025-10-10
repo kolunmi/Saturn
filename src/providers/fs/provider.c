@@ -253,11 +253,32 @@ provider_bind_preview (SaturnProvider *self,
                        AdwBin         *preview)
 {
   g_autoptr (GError) local_error = NULL;
+  g_autoptr (GFileInfo) info     = NULL;
+  gboolean image                 = FALSE;
   g_autoptr (GBytes) bytes       = NULL;
 
-  bytes = dex_await_boxed (
-      dex_file_load_contents_bytes (G_FILE (object)),
+  info = dex_await_object (
+      dex_file_query_info (
+          G_FILE (object),
+          G_FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE,
+          G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
+          G_PRIORITY_DEFAULT),
       &local_error);
+
+  if (info != NULL)
+    {
+      const char *content_type = NULL;
+
+      content_type = g_file_info_get_content_type (info);
+
+      if (g_content_type_is_a (content_type, "text/*"))
+        bytes = dex_await_boxed (
+            dex_file_load_contents_bytes (G_FILE (object)),
+            &local_error);
+      else if (g_content_type_is_a (content_type, "image/*"))
+        image = TRUE;
+    }
+
   if (bytes != NULL)
     {
       g_autoptr (GtkTextBuffer) buffer = NULL;
@@ -277,11 +298,22 @@ provider_bind_preview (SaturnProvider *self,
 
       adw_bin_set_child (preview, window);
     }
+  else if (image)
+    {
+      GtkWidget *picture = NULL;
+
+      picture = gtk_picture_new_for_file (G_FILE (object));
+      gtk_widget_set_halign (picture, GTK_ALIGN_CENTER);
+      gtk_widget_set_valign (picture, GTK_ALIGN_CENTER);
+      gtk_picture_set_content_fit (GTK_PICTURE (picture), GTK_CONTENT_FIT_CONTAIN);
+
+      adw_bin_set_child (preview, picture);
+    }
   else
     {
       GtkWidget *label = NULL;
 
-      label = gtk_label_new (local_error->message);
+      label = gtk_label_new (local_error != NULL ? local_error->message : "Invalid File Type");
       gtk_label_set_ellipsize (GTK_LABEL (label), PANGO_ELLIPSIZE_END);
       gtk_widget_add_css_class (label, "error");
       gtk_widget_add_css_class (label, "title-4");

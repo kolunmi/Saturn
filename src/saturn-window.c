@@ -177,7 +177,9 @@ make_preview_fiber (SaturnWindow *self)
   if (provider == NULL)
     return dex_future_new_true ();
 
+  adw_bin_set_child (self->preview_bin, NULL);
   saturn_provider_bind_preview (provider, item, self->preview_bin);
+
   return dex_future_new_true ();
 }
 
