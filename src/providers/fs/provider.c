@@ -223,7 +223,7 @@ provider_bind_list_item (SaturnProvider *self,
   g_autofree char *parent_path = NULL;
   GtkWidget       *left_label  = NULL;
   GtkWidget       *right_label = NULL;
-  GtkWidget       *center_box  = NULL;
+  GtkWidget       *box         = NULL;
 
   basename = g_file_get_basename (G_FILE (object));
 
@@ -235,32 +235,69 @@ provider_bind_list_item (SaturnProvider *self,
   gtk_label_set_ellipsize (GTK_LABEL (left_label), PANGO_ELLIPSIZE_END);
 
   right_label = gtk_label_new (parent_path);
+  gtk_widget_set_hexpand (right_label, TRUE);
   gtk_label_set_xalign (GTK_LABEL (right_label), 1.0);
   gtk_label_set_ellipsize (GTK_LABEL (right_label), PANGO_ELLIPSIZE_END);
   gtk_widget_add_css_class (right_label, "dimmed");
 
-  center_box = gtk_center_box_new ();
-  gtk_center_box_set_start_widget (GTK_CENTER_BOX (center_box), left_label);
-  gtk_center_box_set_end_widget (GTK_CENTER_BOX (center_box), right_label);
+  box = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 10);
+  gtk_box_append (GTK_BOX (box), left_label);
+  gtk_box_append (GTK_BOX (box), right_label);
 
-  adw_bin_set_child (list_item, center_box);
+  adw_bin_set_child (list_item, box);
 }
 
 static void
-provider_unbind_list_item (SaturnProvider *self,
-                           gpointer        object,
-                           AdwBin         *list_item)
+provider_bind_preview (SaturnProvider *self,
+                       gpointer        object,
+                       AdwBin         *preview)
 {
+  g_autoptr (GError) local_error = NULL;
+  g_autoptr (GBytes) bytes       = NULL;
+
+  bytes = dex_await_boxed (
+      dex_file_load_contents_bytes (G_FILE (object)),
+      &local_error);
+  if (bytes != NULL)
+    {
+      g_autoptr (GtkTextBuffer) buffer = NULL;
+      GtkWidget *view                  = NULL;
+      GtkWidget *window                = NULL;
+
+      buffer = gtk_text_buffer_new (NULL);
+      gtk_text_buffer_set_text (
+          buffer,
+          g_bytes_get_data (bytes, NULL), -1);
+
+      view = gtk_text_view_new_with_buffer (buffer);
+      gtk_widget_add_css_class (view, "monospace");
+
+      window = gtk_scrolled_window_new ();
+      gtk_scrolled_window_set_child (GTK_SCROLLED_WINDOW (window), view);
+
+      adw_bin_set_child (preview, window);
+    }
+  else
+    {
+      GtkWidget *label = NULL;
+
+      label = gtk_label_new (local_error->message);
+      gtk_label_set_ellipsize (GTK_LABEL (label), PANGO_ELLIPSIZE_END);
+      gtk_widget_add_css_class (label, "error");
+      gtk_widget_add_css_class (label, "title-4");
+
+      adw_bin_set_child (preview, label);
+    }
 }
 
 static void
 provider_iface_init (SaturnProviderInterface *iface)
 {
-  iface->init_global      = provider_init_global;
-  iface->query            = provider_query;
-  iface->score            = provider_score;
-  iface->bind_list_item   = provider_bind_list_item;
-  iface->unbind_list_item = provider_unbind_list_item;
+  iface->init_global    = provider_init_global;
+  iface->query          = provider_query;
+  iface->score          = provider_score;
+  iface->bind_list_item = provider_bind_list_item;
+  iface->bind_preview   = provider_bind_preview;
 }
 
 static void

@@ -40,12 +40,11 @@ template $SaturnWindow: Adw.ApplicationWindow {
     }
 
     content: Box {
-      width-request: 200;
       orientation: horizontal;
       spacing: 10;
 
       ScrolledWindow {
-        hexpand: true;
+        width-request: 400;
         hscrollbar-policy: never;
         propagate-natural-height: true;
 
@@ -57,7 +56,9 @@ template $SaturnWindow: Adw.ApplicationWindow {
           single-click-activate: false;
           tab-behavior: item;
 
-          model: SingleSelection selection {};
+          model: SingleSelection selection {
+            notify::selected => $selected_changed_cb(template);
+          };
 
           factory: SignalListItemFactory {
             setup => $list_item_setup_cb(template);
@@ -66,6 +67,10 @@ template $SaturnWindow: Adw.ApplicationWindow {
             unbind => $list_item_unbind_cb(template);
           };
         };
+      }
+
+      Adw.Bin preview_bin {
+        hexpand: true;
       }
     };
   };

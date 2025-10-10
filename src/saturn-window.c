@@ -50,9 +50,13 @@ struct _SaturnWindow
   QueryData      *task_data;
   DexCancellable *cancel;
 
+  guint      debounce;
+  DexFuture *make_preview;
+
   /* Template widgets */
   GtkLabel           *status_label;
   GtkSingleSelection *selection;
+  AdwBin             *preview_bin;
 };
 
 G_DEFINE_FINAL_TYPE (SaturnWindow, saturn_window, ADW_TYPE_APPLICATION_WINDOW)
@@ -81,9 +85,12 @@ saturn_window_dispose (GObject *object)
 
   dex_clear (&self->task);
   dex_clear (&self->cancel);
+  dex_clear (&self->make_preview);
 
   g_clear_object (&self->model);
   g_clear_pointer (&self->task_data, query_data_unref);
+
+  g_clear_handle_id (&self->debounce, g_source_remove);
 
   G_OBJECT_CLASS (saturn_window_parent_class)->dispose (object);
 }
@@ -154,6 +161,50 @@ text_changed_cb (SaturnWindow *self,
       dex_scheduler_get_default (),
       0, (DexFiberFunc) query_fiber,
       query_data_ref (data), query_data_unref);
+}
+
+static DexFuture *
+make_preview_fiber (SaturnWindow *self)
+{
+  gpointer        item     = NULL;
+  SaturnProvider *provider = NULL;
+
+  item = gtk_single_selection_get_selected_item (self->selection);
+  if (item == NULL)
+    return dex_future_new_true ();
+
+  provider = g_object_get_qdata (G_OBJECT (item), SATURN_PROVIDER_QUARK);
+  if (provider == NULL)
+    return dex_future_new_true ();
+
+  saturn_provider_bind_preview (provider, item, self->preview_bin);
+  return dex_future_new_true ();
+}
+
+static void
+debounce_timeout (SaturnWindow *self)
+{
+  self->debounce = 0;
+  dex_clear (&self->make_preview);
+
+  self->make_preview = dex_scheduler_spawn (
+      dex_scheduler_get_default (),
+      0, (DexFiberFunc) make_preview_fiber,
+      self, NULL);
+}
+
+static void
+selected_changed_cb (SaturnWindow       *self,
+                     GParamSpec         *pspec,
+                     GtkSingleSelection *selection)
+{
+  g_clear_handle_id (&self->debounce, g_source_remove);
+  dex_clear (&self->make_preview);
+
+  self->debounce = g_timeout_add_once (
+      150,
+      (GSourceOnceFunc) debounce_timeout,
+      self);
 }
 
 static void
@@ -230,7 +281,9 @@ saturn_window_class_init (SaturnWindowClass *klass)
   gtk_widget_class_set_template_from_resource (widget_class, "/io/github/kolunmi/Saturn/saturn-window.ui");
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, status_label);
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, selection);
+  gtk_widget_class_bind_template_child (widget_class, SaturnWindow, preview_bin);
   gtk_widget_class_bind_template_callback (widget_class, text_changed_cb);
+  gtk_widget_class_bind_template_callback (widget_class, selected_changed_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_setup_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_teardown_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_bind_cb);

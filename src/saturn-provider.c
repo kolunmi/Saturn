@@ -226,7 +226,7 @@ saturn_provider_setup_preview (SaturnProvider *self,
 {
   g_return_if_fail (SATURN_IS_PROVIDER (self));
   g_return_if_fail (G_IS_OBJECT (object));
-  g_return_if_fail (ADW_IS_BIN (object));
+  g_return_if_fail (ADW_IS_BIN (preview));
 
   SATURN_PROVIDER_GET_IFACE (self)->setup_preview (self,
                                                    object,
@@ -240,7 +240,7 @@ saturn_provider_teardown_preview (SaturnProvider *self,
 {
   g_return_if_fail (SATURN_IS_PROVIDER (self));
   g_return_if_fail (G_IS_OBJECT (object));
-  g_return_if_fail (ADW_IS_BIN (object));
+  g_return_if_fail (ADW_IS_BIN (preview));
 
   SATURN_PROVIDER_GET_IFACE (self)->teardown_preview (self,
                                                       object,
@@ -254,7 +254,7 @@ saturn_provider_bind_preview (SaturnProvider *self,
 {
   g_return_if_fail (SATURN_IS_PROVIDER (self));
   g_return_if_fail (G_IS_OBJECT (object));
-  g_return_if_fail (ADW_IS_BIN (object));
+  g_return_if_fail (ADW_IS_BIN (preview));
 
   SATURN_PROVIDER_GET_IFACE (self)->bind_preview (self,
                                                   object,
@@ -268,7 +268,7 @@ saturn_provider_unbind_preview (SaturnProvider *self,
 {
   g_return_if_fail (SATURN_IS_PROVIDER (self));
   g_return_if_fail (G_IS_OBJECT (object));
-  g_return_if_fail (ADW_IS_BIN (object));
+  g_return_if_fail (ADW_IS_BIN (preview));
 
   SATURN_PROVIDER_GET_IFACE (self)->unbind_preview (self,
                                                     object,
