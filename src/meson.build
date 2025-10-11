@@ -1,6 +1,5 @@
 blueprints = custom_target('blueprints',
   input: files(
-    'shortcuts-dialog.blp',
     'saturn-window.blp',
   ),
   output: '.',
