@@ -22,6 +22,8 @@
 
 #include "config.h"
 
+#include <gtksourceview/gtksource.h>
+
 #include "provider.h"
 #include "saturn-provider.h"
 #include "util.h"
@@ -306,7 +308,8 @@ provider_bind_preview (SaturnProvider *self,
 {
   g_autoptr (GError) local_error = NULL;
   g_autoptr (GFileInfo) info     = NULL;
-  gboolean image                 = FALSE;
+  const char *content_type       = NULL;
+  gboolean    image              = FALSE;
   g_autoptr (GBytes) bytes       = NULL;
 
   info = dex_await_object (
@@ -319,7 +322,6 @@ provider_bind_preview (SaturnProvider *self,
 
   if (info != NULL)
     {
-      const char *content_type = NULL;
 
       content_type = g_file_info_get_content_type (info);
 
@@ -333,16 +335,37 @@ provider_bind_preview (SaturnProvider *self,
 
   if (bytes != NULL)
     {
-      g_autoptr (GtkTextBuffer) buffer = NULL;
-      GtkWidget *view                  = NULL;
-      GtkWidget *window                = NULL;
+      g_autofree char   *path            = NULL;
+      GtkSourceLanguage *language        = NULL;
+      g_autoptr (GtkSourceBuffer) buffer = NULL;
+      GtkSourceStyleScheme *scheme       = NULL;
+      GtkWidget            *view         = NULL;
+      GtkWidget            *window       = NULL;
 
-      buffer = gtk_text_buffer_new (NULL);
+      path     = g_file_get_path (G_FILE (object));
+      language = gtk_source_language_manager_guess_language (
+          gtk_source_language_manager_get_default (),
+          path,
+          content_type);
+
+      if (language != NULL)
+        buffer = gtk_source_buffer_new_with_language (language);
+      else
+        buffer = gtk_source_buffer_new (NULL);
+
+      scheme = gtk_source_style_scheme_manager_get_scheme (
+          gtk_source_style_scheme_manager_get_default (),
+          "Adwaita");
+      if (scheme != NULL)
+        gtk_source_buffer_set_style_scheme (buffer, scheme);
+      else
+        gtk_source_buffer_set_highlight_syntax (buffer, FALSE);
+
       gtk_text_buffer_set_text (
-          buffer,
+          GTK_TEXT_BUFFER (buffer),
           g_bytes_get_data (bytes, NULL), -1);
 
-      view = gtk_text_view_new_with_buffer (buffer);
+      view = gtk_source_view_new_with_buffer (buffer);
       gtk_text_view_set_editable (GTK_TEXT_VIEW (view), FALSE);
       gtk_text_view_set_monospace (GTK_TEXT_VIEW (view), TRUE);
       gtk_widget_add_css_class (view, "text-preview");
