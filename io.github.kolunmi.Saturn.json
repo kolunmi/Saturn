@@ -9,6 +9,8 @@
         "--share=ipc",
         "--socket=fallback-x11",
         "--device=dri",
+        "--filesystem=/var/lib/flatpak",
+        "--talk-name=org.freedesktop.Flatpak",
         "--socket=wayland"
     ],
     "cleanup" : [
