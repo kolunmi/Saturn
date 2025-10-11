@@ -25,6 +25,7 @@
 #include "saturn-provider.h"
 #include "saturn-window.h"
 
+#include "providers/appinfo/provider.h"
 #include "providers/fs/provider.h"
 
 struct _SaturnApplication
@@ -122,8 +123,9 @@ static const GActionEntry app_actions[] = {
 static void
 saturn_application_init (SaturnApplication *self)
 {
-  g_autoptr (SaturnFileSystemProvider) fs = NULL;
-  guint n_providers                       = 0;
+  g_autoptr (SaturnFileSystemProvider) fs   = NULL;
+  g_autoptr (SaturnAppInfoProvider) appinfo = NULL;
+  guint n_providers                         = 0;
 
   g_action_map_add_action_entries (
       G_ACTION_MAP (self),
@@ -135,10 +137,12 @@ saturn_application_init (SaturnApplication *self)
       "app.quit",
       (const char *[]) { "<primary>q", NULL });
 
-  fs = g_object_new (SATURN_TYPE_FILE_SYSTEM_PROVIDER, NULL);
+  fs      = g_object_new (SATURN_TYPE_FILE_SYSTEM_PROVIDER, NULL);
+  appinfo = g_object_new (SATURN_TYPE_APP_INFO_PROVIDER, NULL);
 
   self->providers = g_list_store_new (SATURN_TYPE_PROVIDER);
   g_list_store_append (self->providers, fs);
+  g_list_store_append (self->providers, appinfo);
 
   self->inits = g_ptr_array_new_with_free_func (dex_unref);
   n_providers = g_list_model_get_n_items (G_LIST_MODEL (self->providers));

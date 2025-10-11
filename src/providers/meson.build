@@ -1,1 +1,2 @@
 subdir('fs')
+subdir('appinfo')

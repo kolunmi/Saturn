@@ -579,7 +579,10 @@ query_fiber (QueryData *data)
           g_ptr_array_remove_index (components, components->len - 1);
 
           if (!result)
-            return dex_future_new_false ();
+            {
+              dex_channel_close_send (data->channel);
+              return dex_future_new_false ();
+            }
         }
     }
 
