@@ -48,6 +48,12 @@ struct _SaturnProviderInterface
                   gpointer        item,
                   GObject        *query);
 
+  /* `SELECT` SHOULD BE RAN INSIDE OF A FIBER */
+  gboolean (*select) (SaturnProvider *self,
+                      gpointer        item,
+                      GObject        *query,
+                      GError        **error);
+
   void (*setup_list_item) (SaturnProvider *self,
                            AdwBin         *list_item);
   void (*teardown_list_item) (SaturnProvider *self,
@@ -59,6 +65,7 @@ struct _SaturnProviderInterface
                             gpointer        object,
                             AdwBin         *list_item);
 
+  /* PREVIEW STUFF SHOULD BE RUN INSIDE OF FIBERS */
   void (*setup_preview) (SaturnProvider *self,
                          gpointer        object,
                          AdwBin         *preview);
@@ -83,6 +90,12 @@ DexChannel *saturn_provider_query (SaturnProvider *self,
 gsize saturn_provider_score (SaturnProvider *self,
                              gpointer        item,
                              GObject        *query);
+
+gboolean
+saturn_provider_select (SaturnProvider *self,
+                        gpointer        item,
+                        GObject        *query,
+                        GError        **error);
 
 void saturn_provider_setup_list_item (SaturnProvider *self,
                                       gpointer        object,

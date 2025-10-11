@@ -58,6 +58,15 @@ saturn_provider_real_score (SaturnProvider *self,
   return 0;
 }
 
+static gboolean
+saturn_provider_real_select (SaturnProvider *self,
+                             gpointer        item,
+                             GObject        *query,
+                             GError        **error)
+{
+  return TRUE;
+}
+
 static void
 saturn_provider_real_setup_list_item (SaturnProvider *self,
                                       AdwBin         *list_item)
@@ -119,6 +128,7 @@ saturn_provider_default_init (SaturnProviderInterface *iface)
   iface->deinit_global      = saturn_provider_real_deinit_global;
   iface->query              = saturn_provider_real_query;
   iface->score              = saturn_provider_real_score;
+  iface->select             = saturn_provider_real_select;
   iface->setup_list_item    = saturn_provider_real_setup_list_item;
   iface->teardown_list_item = saturn_provider_real_teardown_list_item;
   iface->bind_list_item     = saturn_provider_real_bind_list_item;
@@ -167,6 +177,22 @@ saturn_provider_score (SaturnProvider *self,
   return SATURN_PROVIDER_GET_IFACE (self)->score (self,
                                                   item,
                                                   query);
+}
+
+gboolean
+saturn_provider_select (SaturnProvider *self,
+                        gpointer        item,
+                        GObject        *query,
+                        GError        **error)
+{
+  g_return_val_if_fail (SATURN_IS_PROVIDER (self), 0);
+  g_return_val_if_fail (G_IS_OBJECT (item), 0);
+  g_return_val_if_fail (G_IS_OBJECT (query), 0);
+
+  return SATURN_PROVIDER_GET_IFACE (self)->select (self,
+                                                   item,
+                                                   query,
+                                                   error);
 }
 
 void

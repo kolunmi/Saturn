@@ -53,9 +53,12 @@ struct _SaturnWindow
   guint      debounce;
   DexFuture *make_preview;
 
-  gboolean explicit_select;
+  gboolean explicit_selection;
+
+  DexFuture *select;
 
   /* Template widgets */
+  GtkEditable        *entry;
   GtkLabel           *status_label;
   GtkSingleSelection *selection;
   GtkListView        *list_view;
@@ -89,6 +92,7 @@ saturn_window_dispose (GObject *object)
   dex_clear (&self->task);
   dex_clear (&self->cancel);
   dex_clear (&self->make_preview);
+  dex_clear (&self->select);
 
   g_clear_object (&self->model);
   g_clear_pointer (&self->task_data, query_data_unref);
@@ -166,17 +170,29 @@ text_changed_cb (SaturnWindow *self,
       query_data_ref (data), query_data_unref);
 }
 
+static void
+text_activated_cb (SaturnWindow *self,
+                   GtkEditable  *editable)
+{
+  gtk_widget_activate_action (GTK_WIDGET (self), "select-candidate", NULL);
+}
+
 static DexFuture *
 make_preview_fiber (SaturnWindow *self)
 {
-  gpointer        item     = NULL;
+  guint selected           = 0;
+  g_autoptr (GObject) item = NULL;
   SaturnProvider *provider = NULL;
 
-  item = gtk_single_selection_get_selected_item (self->selection);
-  if (item == NULL)
-    return dex_future_new_true ();
+  selected = gtk_single_selection_get_selected (self->selection);
+  if (selected == GTK_INVALID_LIST_POSITION)
+    {
+      dex_clear (&self->select);
+      return NULL;
+    }
 
-  provider = g_object_get_qdata (G_OBJECT (item), SATURN_PROVIDER_QUARK);
+  item     = g_list_model_get_item (G_LIST_MODEL (self->selection), selected);
+  provider = g_object_get_qdata (item, SATURN_PROVIDER_QUARK);
   if (provider == NULL)
     return dex_future_new_true ();
 
@@ -215,7 +231,7 @@ selected_item_changed_cb (SaturnWindow       *self,
                           GParamSpec         *pspec,
                           GtkSingleSelection *selection)
 {
-  self->explicit_select = TRUE;
+  self->explicit_selection = TRUE;
 }
 
 static void
@@ -268,6 +284,69 @@ list_item_unbind_cb (SaturnWindow             *self,
 
   bin = gtk_list_item_get_child (list_item);
   saturn_provider_unbind_list_item (provider, item, ADW_BIN (bin));
+}
+
+static DexFuture *
+select_fiber (SaturnWindow *self)
+{
+  g_autoptr (GError) local_error     = NULL;
+  guint selected                     = 0;
+  g_autoptr (GObject) item           = NULL;
+  SaturnProvider *provider           = NULL;
+  const char     *text               = NULL;
+  g_autoptr (GtkStringObject) string = NULL;
+  gboolean result                    = FALSE;
+
+  selected = gtk_single_selection_get_selected (self->selection);
+  if (selected == GTK_INVALID_LIST_POSITION)
+    {
+      dex_clear (&self->select);
+      return dex_future_new_true ();
+    }
+
+  item     = g_list_model_get_item (G_LIST_MODEL (self->selection), selected);
+  provider = g_object_get_qdata (item, SATURN_PROVIDER_QUARK);
+  if (provider == NULL)
+    {
+      dex_clear (&self->select);
+      return dex_future_new_true ();
+    }
+
+  text = gtk_editable_get_text (self->entry);
+  if (text != NULL && *text != '\0')
+    string = gtk_string_object_new (text);
+
+  result = saturn_provider_select (
+      provider,
+      item,
+      G_OBJECT (string),
+      &local_error);
+  if (!result)
+    {
+      /* TODO: show `local_error` in UI */
+
+      dex_clear (&self->select);
+      return dex_future_new_true ();
+    }
+
+  gtk_window_close (GTK_WINDOW (self));
+  return dex_future_new_true ();
+}
+
+static void
+action_select_candidate (GtkWidget  *widget,
+                         const char *action_name,
+                         GVariant   *parameter)
+{
+  SaturnWindow *self = SATURN_WINDOW (widget);
+
+  if (self->select != NULL)
+    return;
+
+  self->select = dex_scheduler_spawn (
+      dex_scheduler_get_default (),
+      0, (DexFiberFunc) select_fiber,
+      self, NULL);
 }
 
 static void
@@ -323,17 +402,20 @@ saturn_window_class_init (SaturnWindowClass *klass)
   g_object_class_install_properties (object_class, LAST_PROP, props);
 
   gtk_widget_class_set_template_from_resource (widget_class, "/io/github/kolunmi/Saturn/saturn-window.ui");
+  gtk_widget_class_bind_template_child (widget_class, SaturnWindow, entry);
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, status_label);
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, selection);
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, list_view);
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, preview_bin);
   gtk_widget_class_bind_template_callback (widget_class, text_changed_cb);
+  gtk_widget_class_bind_template_callback (widget_class, text_activated_cb);
   gtk_widget_class_bind_template_callback (widget_class, selected_changed_cb);
   gtk_widget_class_bind_template_callback (widget_class, selected_item_changed_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_setup_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_teardown_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_bind_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_unbind_cb);
+  gtk_widget_class_install_action (widget_class, "select-candidate", NULL, action_select_candidate);
   gtk_widget_class_install_action (widget_class, "move", "i", action_move);
 }
 
@@ -344,6 +426,8 @@ saturn_window_init (SaturnWindow *self)
 
   self->model = g_list_store_new (G_TYPE_OBJECT);
   gtk_single_selection_set_model (self->selection, G_LIST_MODEL (self->model));
+
+  gtk_widget_grab_focus (GTK_WIDGET (self->entry));
 }
 
 void
@@ -376,7 +460,7 @@ query_fiber (QueryData *data)
   g_autoptr (GPtrArray) channels = NULL;
 
   g_list_store_remove_all (self->model);
-  self->explicit_select = FALSE;
+  self->explicit_selection = FALSE;
 
   if (data->query == NULL)
     {
@@ -439,7 +523,7 @@ query_fiber (QueryData *data)
               (GCompareDataFunc) cmp_item,
               data->query);
 
-          if (!self->explicit_select)
+          if (!self->explicit_selection)
             gtk_list_view_scroll_to (
                 self->list_view,
                 0,
@@ -492,14 +576,16 @@ cmp_item (GObject *a,
       SaturnProvider *provider = NULL;
 
       provider = g_object_get_qdata (a, SATURN_PROVIDER_QUARK);
-      a_score  = saturn_provider_score (provider, a, query);
+      if (provider != NULL)
+        a_score = saturn_provider_score (provider, a, query);
     }
   if (b_score == 0)
     {
       SaturnProvider *provider = NULL;
 
       provider = g_object_get_qdata (b, SATURN_PROVIDER_QUARK);
-      b_score  = saturn_provider_score (provider, b, query);
+      if (provider != NULL)
+        b_score = saturn_provider_score (provider, b, query);
     }
 
   return a_score > b_score ? -1 : 1;

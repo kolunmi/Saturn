@@ -204,13 +204,65 @@ provider_score (SaturnProvider *self,
   search   = gtk_string_object_get_string (GTK_STRING_OBJECT (query));
   basename = g_file_get_basename (G_FILE (item));
 
-  score = G_MAXSIZE / strlen (basename) * strlen (search);
+  score = MAX (1, G_MAXSIZE / strlen (basename) * strlen (search));
   g_object_set_qdata (
       G_OBJECT (item),
       SATURN_PROVIDER_SCORE_QUARK,
       GSIZE_TO_POINTER (score));
 
   return score;
+}
+
+static void
+launch_finish (GObject      *object,
+               GAsyncResult *result,
+               gpointer      user_data)
+{
+  DexPromise *promise            = user_data;
+  g_autoptr (GError) local_error = NULL;
+  gboolean success               = FALSE;
+
+  success = g_app_info_launch_default_for_uri_finish (result, &local_error);
+  if (success)
+    dex_promise_resolve_boolean (promise, TRUE);
+  else
+    dex_promise_reject (promise, g_steal_pointer (&local_error));
+
+  dex_unref (promise);
+}
+
+static gboolean
+provider_select (SaturnProvider *self,
+                 gpointer        item,
+                 GObject        *query,
+                 GError        **error)
+{
+  g_autoptr (GError) local_error      = NULL;
+  g_autofree char *uri                = NULL;
+  g_autoptr (GtkUriLauncher) launcher = NULL;
+  g_autoptr (DexPromise) promise      = NULL;
+  gboolean result                     = FALSE;
+
+  uri     = g_file_get_uri (G_FILE (item));
+  promise = dex_promise_new_cancellable ();
+
+  g_app_info_launch_default_for_uri_async (
+      uri,
+      NULL,
+      dex_promise_get_cancellable (promise),
+      launch_finish,
+      dex_ref (promise));
+
+  result = dex_await_boolean (
+      (DexFuture *) g_steal_pointer (&promise),
+      &local_error);
+  if (!result)
+    {
+      g_critical ("Could not select file at URI %s: %s", uri, local_error->message);
+      g_propagate_error (error, g_steal_pointer (&local_error));
+    }
+
+  return result;
 }
 
 static void
@@ -329,6 +381,7 @@ provider_iface_init (SaturnProviderInterface *iface)
   iface->init_global    = provider_init_global;
   iface->query          = provider_query;
   iface->score          = provider_score;
+  iface->select         = provider_select;
   iface->bind_list_item = provider_bind_list_item;
   iface->bind_preview   = provider_bind_preview;
 }

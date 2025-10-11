@@ -3,7 +3,7 @@ using Adw 1;
 
 template $SaturnWindow: Adw.ApplicationWindow {
   title: _("Saturn");
-  default-width: 800;
+  default-width: 1000;
   default-height: 600;
 
   ShortcutController {
@@ -72,11 +72,14 @@ template $SaturnWindow: Adw.ApplicationWindow {
       }
 
       [start]
-      Text {
+      Text entry {
+        receives-default: true;
+        width-request: 300;
         halign: fill;
         hexpand: true;
         placeholder-text: _("Type to filter...");
         changed => $text_changed_cb(template);
+        activate => $text_activated_cb(template);
       }
 
       [end]
@@ -121,7 +124,7 @@ template $SaturnWindow: Adw.ApplicationWindow {
       }
 
       Adw.Bin preview_bin {
-        width-request: 250;
+        width-request: 300;
         hexpand: true;
       }
     };
