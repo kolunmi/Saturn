@@ -3,7 +3,7 @@ using Adw 1;
 
 template $SaturnWindow: Adw.ApplicationWindow {
   title: _("Saturn");
-  default-width: 1000;
+  default-width: 1400;
   default-height: 600;
 
   ShortcutController {
@@ -73,6 +73,9 @@ template $SaturnWindow: Adw.ApplicationWindow {
 
       [start]
       Text entry {
+        styles [
+          "main-entry",
+        ]
         receives-default: true;
         width-request: 300;
         halign: fill;

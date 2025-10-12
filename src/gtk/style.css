@@ -18,6 +18,10 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+.main-entry {
+    font-size: 1.33333em;
+}
+
 .text-preview {
     font-family: monospace;
     font-size: medium;
