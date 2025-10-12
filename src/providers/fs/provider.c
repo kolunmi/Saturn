@@ -306,6 +306,37 @@ provider_bind_list_item (SaturnProvider *self,
 }
 
 static void
+source_view_check_dark_mode (GtkSourceBuffer *buffer)
+{
+  gboolean              is_dark;
+  const char           *id     = NULL;
+  GtkSourceStyleScheme *scheme = NULL;
+
+  is_dark = adw_style_manager_get_dark (
+      adw_style_manager_get_default ());
+  if (is_dark)
+    id = "Adwaita-dark";
+  else
+    id = "Adwaita";
+
+  scheme = gtk_source_style_scheme_manager_get_scheme (
+      gtk_source_style_scheme_manager_get_default (),
+      id);
+  if (scheme != NULL)
+    gtk_source_buffer_set_style_scheme (buffer, scheme);
+  else
+    gtk_source_buffer_set_highlight_syntax (buffer, FALSE);
+}
+
+static void
+dark_changed (GtkSourceBuffer *buffer,
+              GParamSpec      *pspec,
+              AdwStyleManager *mgr)
+{
+  source_view_check_dark_mode (buffer);
+}
+
+static void
 provider_bind_preview (SaturnProvider *self,
                        gpointer        object,
                        AdwBin         *preview)
@@ -342,9 +373,8 @@ provider_bind_preview (SaturnProvider *self,
       g_autofree char   *path            = NULL;
       GtkSourceLanguage *language        = NULL;
       g_autoptr (GtkSourceBuffer) buffer = NULL;
-      GtkSourceStyleScheme *scheme       = NULL;
-      GtkWidget            *view         = NULL;
-      GtkWidget            *window       = NULL;
+      GtkWidget *view                    = NULL;
+      GtkWidget *window                  = NULL;
 
       path     = g_file_get_path (G_FILE (object));
       language = gtk_source_language_manager_guess_language (
@@ -357,13 +387,13 @@ provider_bind_preview (SaturnProvider *self,
       else
         buffer = gtk_source_buffer_new (NULL);
 
-      scheme = gtk_source_style_scheme_manager_get_scheme (
-          gtk_source_style_scheme_manager_get_default (),
-          "Adwaita");
-      if (scheme != NULL)
-        gtk_source_buffer_set_style_scheme (buffer, scheme);
-      else
-        gtk_source_buffer_set_highlight_syntax (buffer, FALSE);
+      source_view_check_dark_mode (buffer);
+      g_signal_connect_object (
+          adw_style_manager_get_default (),
+          "notify::dark",
+          G_CALLBACK (dark_changed),
+          buffer,
+          G_CONNECT_SWAPPED);
 
       gtk_text_buffer_set_text (
           GTK_TEXT_BUFFER (buffer),
