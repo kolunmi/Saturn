@@ -27,12 +27,11 @@
     "modules" : [
         {
             "name" : "saturn",
-            "builddir" : true,
             "buildsystem" : "meson",
             "sources" : [
                 {
-                    "type" : "git",
-                    "url" : "file:///var/home/eva/Projects"
+                    "type" : "dir",
+                    "path" : "."
                 }
             ]
         }
