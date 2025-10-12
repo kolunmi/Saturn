@@ -160,9 +160,16 @@ provider_score (SaturnProvider *self,
   id     = g_app_info_get_id (G_APP_INFO (item));
   name   = g_app_info_get_name (G_APP_INFO (item));
 
-  id_score   = MAX (1, G_MAXSIZE / strlen (id) * strlen (search));
-  name_score = MAX (1, G_MAXSIZE / strlen (name) * strlen (search));
-  score      = MAX (id_score, name_score);
+  if (id != NULL && strcasestr (id, search))
+    id_score = 1 + (gsize) (SATURN_PROVIDER_MAX_SCORE_DOUBLE *
+                            ((double) strlen (search) /
+                             (double) strlen (id)));
+  if (name != NULL && strcasestr (name, search))
+    name_score = 1 + (gsize) (SATURN_PROVIDER_MAX_SCORE_DOUBLE *
+                              ((double) strlen (search) /
+                               (double) strlen (name)));
+
+  score = MAX (id_score, name_score);
   g_object_set_qdata (
       G_OBJECT (item),
       SATURN_PROVIDER_SCORE_QUARK,

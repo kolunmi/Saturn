@@ -209,7 +209,9 @@ provider_score (SaturnProvider *self,
   search   = gtk_string_object_get_string (GTK_STRING_OBJECT (query));
   basename = g_file_get_basename (G_FILE (item));
 
-  score = MAX (1, G_MAXSIZE / strlen (basename) * strlen (search));
+  score = 1 + (gsize) (SATURN_PROVIDER_MAX_SCORE_DOUBLE *
+                       ((double) strlen (search) /
+                        (double) strlen (basename)));
   g_object_set_qdata (
       G_OBJECT (item),
       SATURN_PROVIDER_SCORE_QUARK,

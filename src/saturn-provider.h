@@ -31,6 +31,8 @@ GQuark saturn_provider_quark (void);
 #define SATURN_PROVIDER_SCORE_QUARK (saturn_provider_score_quark ())
 GQuark saturn_provider_score_quark (void);
 
+#define SATURN_PROVIDER_MAX_SCORE_DOUBLE 100000.0
+
 #define SATURN_TYPE_PROVIDER (saturn_provider_get_type ())
 G_DECLARE_INTERFACE (SaturnProvider, saturn_provider, SATURN, PROVIDER, GObject)
 
