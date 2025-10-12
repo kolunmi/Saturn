@@ -458,6 +458,7 @@ query_fiber (QueryData *data)
   g_autoptr (GError) local_error = NULL;
   guint n_providers              = 0;
   g_autoptr (GPtrArray) channels = NULL;
+  g_autoptr (GPtrArray) futures  = NULL;
 
   g_list_store_remove_all (self->model);
   self->explicit_selection = FALSE;
@@ -482,25 +483,28 @@ query_fiber (QueryData *data)
       if (channel != NULL)
         g_ptr_array_add (channels, dex_ref (channel));
     }
+  if (channels->len == 0)
+    {
+      gtk_label_set_label (self->status_label, _ ("Waiting"));
+      return dex_future_new_true ();
+    }
+
+  futures = g_ptr_array_new_with_free_func (dex_unref);
+  g_ptr_array_add (futures, dex_ref (self->cancel));
+  for (guint i = 0; i < channels->len; i++)
+    {
+      DexChannel *channel = NULL;
+
+      channel = g_ptr_array_index (channels, i);
+      g_ptr_array_add (futures, dex_channel_receive (channel));
+    }
 
   for (;;)
     {
-      g_autoptr (GPtrArray) futures = NULL;
-      g_autoptr (GObject) object    = NULL;
-
-      futures = g_ptr_array_new_with_free_func (dex_unref);
-      g_ptr_array_add (futures, dex_ref (self->cancel));
-
-      for (guint i = 0; i < channels->len; i++)
-        {
-          DexChannel *channel = NULL;
-
-          channel = g_ptr_array_index (channels, i);
-          g_ptr_array_add (futures, dex_channel_receive (channel));
-        }
+      g_autoptr (GObject) object = NULL;
 
       object = dex_await_object (
-          dex_future_anyv (
+          dex_future_firstv (
               (DexFuture *const *) futures->pdata,
               futures->len),
           NULL);
@@ -539,7 +543,34 @@ query_fiber (QueryData *data)
           status_text = g_strdup_printf (_ ("%'d"), n_items);
           gtk_label_set_label (self->status_label, status_text);
         }
-      else
+
+      for (guint i = 0; i < channels->len;)
+        {
+          DexChannel *channel = NULL;
+          DexFuture  *future  = NULL;
+
+          channel = g_ptr_array_index (channels, i);
+          future  = g_ptr_array_index (futures, i + 1);
+
+          if (!dex_channel_can_receive (channel) ||
+              dex_future_is_rejected (future))
+            {
+              dex_channel_close_receive (channel);
+              g_ptr_array_remove_index (channels, i);
+              g_ptr_array_remove_index (futures, i + 1);
+            }
+          else
+            {
+              if (dex_future_is_resolved (future))
+                {
+                  future = NULL;
+                  dex_clear (&g_ptr_array_index (futures, i + 1));
+                  g_ptr_array_index (futures, i + 1) = dex_channel_receive (channel);
+                }
+              i++;
+            }
+        }
+      if (channels->len == 0)
         break;
 
       dex_await (dex_timeout_new_usec (1), NULL);
