@@ -178,13 +178,57 @@ provider_score (SaturnProvider *self,
   return score;
 }
 
+static void
+launch_finish (GObject      *object,
+               GAsyncResult *result,
+               gpointer      user_data)
+{
+  DexPromise *promise            = user_data;
+  g_autoptr (GError) local_error = NULL;
+  gboolean success               = FALSE;
+
+  success = g_app_info_launch_uris_finish (G_APP_INFO (object), result, &local_error);
+  if (success)
+    dex_promise_resolve_boolean (promise, TRUE);
+  else
+    dex_promise_reject (promise, g_steal_pointer (&local_error));
+
+  dex_unref (promise);
+}
+
 static gboolean
 provider_select (SaturnProvider *self,
                  gpointer        item,
                  GObject        *query,
                  GError        **error)
 {
-  return TRUE;
+  g_autoptr (GError) local_error = NULL;
+  g_autoptr (DexPromise) promise = NULL;
+  gboolean result                = FALSE;
+
+  promise = dex_promise_new_cancellable ();
+
+  g_app_info_launch_uris_async (
+      G_APP_INFO (item),
+      NULL, NULL,
+      dex_promise_get_cancellable (promise),
+      launch_finish,
+      dex_ref (promise));
+
+  result = dex_await_boolean (
+      (DexFuture *) g_steal_pointer (&promise),
+      &local_error);
+  if (!result)
+    {
+      const char *id = NULL;
+
+      id = g_app_info_get_id (G_APP_INFO (item));
+
+      g_critical ("Could not launch id %s: %s", id, local_error->message);
+      g_propagate_error (error, g_steal_pointer (&local_error));
+    }
+
+  return result;
 }
 
 static void

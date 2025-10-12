@@ -244,11 +244,10 @@ provider_select (SaturnProvider *self,
                  GObject        *query,
                  GError        **error)
 {
-  g_autoptr (GError) local_error      = NULL;
-  g_autofree char *uri                = NULL;
-  g_autoptr (GtkUriLauncher) launcher = NULL;
-  g_autoptr (DexPromise) promise      = NULL;
-  gboolean result                     = FALSE;
+  g_autoptr (GError) local_error = NULL;
+  g_autofree char *uri           = NULL;
+  g_autoptr (DexPromise) promise = NULL;
+  gboolean result                = FALSE;
 
   uri     = g_file_get_uri (G_FILE (item));
   promise = dex_promise_new_cancellable ();
