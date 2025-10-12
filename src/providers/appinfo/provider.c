@@ -261,7 +261,10 @@ query_fiber (QueryData *data)
 
   self = g_weak_ref_get (&data->self);
   if (self == NULL)
-    return NULL;
+    {
+      dex_channel_close_send (data->channel);
+      return NULL;
+    }
 
   query = gtk_string_object_get_string (GTK_STRING_OBJECT (data->object));
 

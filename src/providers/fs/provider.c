@@ -49,12 +49,14 @@ SATURN_DEFINE_DATA (
     work,
     Work,
     {
-      gboolean    active;
+      GWeakRef    self;
       GMutex      mutex;
+      gboolean    active;
       GHashTable *paths;
       DexChannel *channel;
       char       *query;
     },
+    g_weak_ref_clear (&self->self);
     g_mutex_clear (&self->mutex);
     SATURN_RELEASE_DATA (paths, g_hash_table_unref);
     SATURN_RELEASE_DATA (channel, dex_unref);
@@ -103,11 +105,11 @@ static DexFuture *
 query_fiber (QueryData *data);
 
 static gboolean
-query_recurse (DexChannel *channel,
-               GWeakRef   *wr,
-               FsNode     *node,
-               GPtrArray  *components,
-               const char *query);
+query_recurse (SaturnFileSystemProvider *self,
+               DexChannel               *channel,
+               FsNode                   *node,
+               GPtrArray                *components,
+               const char               *query);
 
 static void
 saturn_file_system_provider_dispose (GObject *object)
@@ -134,6 +136,7 @@ saturn_file_system_provider_init (SaturnFileSystemProvider *self)
   g_autoptr (WorkData) data = NULL;
 
   data = work_data_new ();
+  g_weak_ref_init (&data->self, self);
   g_mutex_init (&data->mutex);
   data->paths = g_hash_table_new_full (
       g_str_hash,
@@ -454,6 +457,7 @@ work_recurse (WorkData  *data,
   g_autoptr (GError) local_error         = NULL;
   g_autofree gchar *uri                  = NULL;
   g_autoptr (GFileEnumerator) enumerator = NULL;
+  gboolean result                        = FALSE;
 
   uri        = g_file_get_uri (file);
   enumerator = g_file_enumerate_children (
@@ -513,7 +517,14 @@ work_recurse (WorkData  *data,
           data->channel != NULL &&
           strcasestr (node->component, data->query) != NULL)
         {
-          gboolean result = FALSE;
+          g_autoptr (SaturnFileSystemProvider) self = NULL;
+
+          self = g_weak_ref_get (&data->self);
+          g_object_set_qdata_full (
+              G_OBJECT (child),
+              SATURN_PROVIDER_QUARK,
+              g_object_ref (self),
+              g_object_unref);
 
           result = dex_await (
               dex_channel_send (
@@ -537,12 +548,19 @@ work_recurse (WorkData  *data,
 static DexFuture *
 query_fiber (QueryData *data)
 {
-  const char *query               = NULL;
-  g_autoptr (GMutexLocker) locker = NULL;
-  GHashTableIter iter             = { 0 };
+  g_autoptr (SaturnFileSystemProvider) self = NULL;
+  const char *query                         = NULL;
+  g_autoptr (GMutexLocker) locker           = NULL;
+  GHashTableIter iter                       = { 0 };
 
-  query = gtk_string_object_get_string (GTK_STRING_OBJECT (data->object));
+  self = g_weak_ref_get (&data->self);
+  if (self == NULL)
+    {
+      dex_channel_close_send (data->work_data->channel);
+      return NULL;
+    }
 
+  query  = gtk_string_object_get_string (GTK_STRING_OBJECT (data->object));
   locker = g_mutex_locker_new (&data->work_data->mutex);
 
   if (data->work_data->channel != NULL)
@@ -575,7 +593,7 @@ query_fiber (QueryData *data)
           node = g_ptr_array_index (array, i);
 
           g_ptr_array_add (components, node->component);
-          result = query_recurse (data->channel, &data->self, node, components, query);
+          result = query_recurse (self, data->channel, node, components, query);
           g_ptr_array_remove_index (components, components->len - 1);
 
           if (!result)
@@ -598,11 +616,11 @@ query_fiber (QueryData *data)
 }
 
 static gboolean
-query_recurse (DexChannel *channel,
-               GWeakRef   *wr,
-               FsNode     *node,
-               GPtrArray  *components,
-               const char *query)
+query_recurse (SaturnFileSystemProvider *self,
+               DexChannel               *channel,
+               FsNode                   *node,
+               GPtrArray                *components,
+               const char               *query)
 {
   gboolean result = FALSE;
 
@@ -615,7 +633,7 @@ query_recurse (DexChannel *channel,
           child = g_ptr_array_index (node->children, i);
 
           g_ptr_array_add (components, child->component);
-          result = query_recurse (channel, wr, child, components, query);
+          result = query_recurse (self, channel, child, components, query);
           g_ptr_array_remove_index (components, components->len - 1);
 
           if (!result)
@@ -624,9 +642,8 @@ query_recurse (DexChannel *channel,
     }
   else if (strcasestr (node->component, query) != NULL)
     {
-      g_autoptr (GString) path                  = NULL;
-      g_autoptr (GFile) file                    = NULL;
-      g_autoptr (SaturnFileSystemProvider) self = NULL;
+      g_autoptr (GString) path = NULL;
+      g_autoptr (GFile) file   = NULL;
 
       path = g_string_new (g_ptr_array_index (components, 0));
       for (guint i = 1; i < components->len; i++)
@@ -636,11 +653,10 @@ query_recurse (DexChannel *channel,
             (char *) g_ptr_array_index (components, i));
 
       file = g_file_new_for_path (path->str);
-      self = g_weak_ref_get (wr);
       g_object_set_qdata_full (
           G_OBJECT (file),
           SATURN_PROVIDER_QUARK,
-          g_steal_pointer (&self),
+          g_object_ref (self),
           g_object_unref);
 
       result = dex_await (

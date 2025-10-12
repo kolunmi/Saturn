@@ -576,16 +576,14 @@ cmp_item (GObject *a,
       SaturnProvider *provider = NULL;
 
       provider = g_object_get_qdata (a, SATURN_PROVIDER_QUARK);
-      if (provider != NULL)
-        a_score = saturn_provider_score (provider, a, query);
+      a_score  = saturn_provider_score (provider, a, query);
     }
   if (b_score == 0)
     {
       SaturnProvider *provider = NULL;
 
       provider = g_object_get_qdata (b, SATURN_PROVIDER_QUARK);
-      if (provider != NULL)
-        b_score = saturn_provider_score (provider, b, query);
+      b_score  = saturn_provider_score (provider, b, query);
     }
 
   return a_score > b_score ? -1 : 1;
