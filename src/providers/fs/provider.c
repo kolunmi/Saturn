@@ -172,7 +172,7 @@ provider_query (SaturnProvider *provider,
   SaturnFileSystemProvider *self = SATURN_FILE_SYSTEM_PROVIDER (provider);
   g_autoptr (DexChannel) channel = NULL;
 
-  channel = dex_channel_new (1);
+  channel = dex_channel_new (32);
   if (GTK_IS_STRING_OBJECT (object))
     {
       g_autoptr (QueryData) data = NULL;
