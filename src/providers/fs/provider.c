@@ -51,16 +51,11 @@ SATURN_DEFINE_DATA (
     {
       GWeakRef    self;
       GMutex      mutex;
-      gboolean    active;
       GHashTable *paths;
-      DexChannel *channel;
-      char       *query;
     },
     g_weak_ref_clear (&self->self);
     g_mutex_clear (&self->mutex);
-    SATURN_RELEASE_DATA (paths, g_hash_table_unref);
-    SATURN_RELEASE_DATA (channel, dex_unref);
-    SATURN_RELEASE_DATA (query, g_free))
+    SATURN_RELEASE_DATA (paths, g_hash_table_unref));
 
 static DexFuture *
 work_fiber (WorkData *data);
@@ -151,10 +146,6 @@ static DexFuture *
 provider_init_global (SaturnProvider *provider)
 {
   SaturnFileSystemProvider *self = SATURN_FILE_SYSTEM_PROVIDER (provider);
-
-  g_mutex_lock (&self->data->mutex);
-  self->data->active = TRUE;
-  g_mutex_unlock (&self->data->mutex);
 
   dex_clear (&self->work);
   self->work = dex_scheduler_spawn (
@@ -467,16 +458,6 @@ work_fiber (WorkData *data)
   g_hash_table_replace (data->paths, g_strdup (home), g_ptr_array_ref (array));
   work_recurse (data, file, array);
 
-  g_mutex_lock (&data->mutex);
-  if (data->channel != NULL)
-    {
-      dex_channel_close_send (data->channel);
-      dex_clear (&data->channel);
-      g_clear_pointer (&data->query, g_free);
-    }
-  data->active = FALSE;
-  g_mutex_unlock (&data->mutex);
-
   return dex_future_new_true ();
 }
 
@@ -488,7 +469,6 @@ work_recurse (WorkData  *data,
   g_autoptr (GError) local_error         = NULL;
   g_autofree gchar *uri                  = NULL;
   g_autoptr (GFileEnumerator) enumerator = NULL;
-  gboolean result                        = FALSE;
 
   uri        = g_file_get_uri (file);
   enumerator = g_file_enumerate_children (
@@ -544,31 +524,6 @@ work_recurse (WorkData  *data,
 
       g_mutex_lock (&data->mutex);
       g_ptr_array_add (parent, node);
-      if (file_type != G_FILE_TYPE_DIRECTORY &&
-          data->channel != NULL &&
-          strcasestr (node->component, data->query) != NULL)
-        {
-          g_autoptr (SaturnFileSystemProvider) self = NULL;
-
-          self = g_weak_ref_get (&data->self);
-          g_object_set_qdata_full (
-              G_OBJECT (child),
-              SATURN_PROVIDER_QUARK,
-              g_object_ref (self),
-              g_object_unref);
-
-          result = dex_await (
-              dex_channel_send (
-                  data->channel,
-                  dex_future_new_for_object (child)),
-              NULL);
-          if (!result)
-            {
-              dex_channel_close_send (data->channel);
-              dex_clear (&data->channel);
-              g_clear_pointer (&data->query, g_free);
-            }
-        }
       g_mutex_unlock (&data->mutex);
 
       if (file_type == G_FILE_TYPE_DIRECTORY)
@@ -587,17 +542,12 @@ query_fiber (QueryData *data)
   self = g_weak_ref_get (&data->self);
   if (self == NULL)
     {
-      dex_channel_close_send (data->work_data->channel);
+      dex_channel_close_send (data->channel);
       return NULL;
     }
 
   query  = gtk_string_object_get_string (GTK_STRING_OBJECT (data->object));
   locker = g_mutex_locker_new (&data->work_data->mutex);
-
-  if (data->work_data->channel != NULL)
-    dex_channel_close_send (data->work_data->channel);
-  dex_clear (&data->work_data->channel);
-  g_clear_pointer (&data->work_data->query, g_free);
 
   g_hash_table_iter_init (&iter, data->work_data->paths);
   for (;;)
@@ -635,14 +585,7 @@ query_fiber (QueryData *data)
         }
     }
 
-  if (data->work_data->active)
-    {
-      data->work_data->channel = dex_ref (data->channel);
-      data->work_data->query   = g_strdup (query);
-    }
-  else
-    dex_channel_close_send (data->channel);
-
+  dex_channel_close_send (data->channel);
   return dex_future_new_true ();
 }
 
