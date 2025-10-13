@@ -488,18 +488,34 @@ query_then_loop (DexFuture    *future,
   guint            n_items     = 0;
   g_autofree char *status_text = NULL;
 
-  object = g_value_get_object (dex_future_get_value (future, NULL));
-
   g_signal_handlers_block_by_func (
       self->selection,
       selected_item_changed_cb,
       self);
 
+  object = g_value_get_object (dex_future_get_value (future, NULL));
   g_list_store_insert_sorted (
       self->model,
       object,
       (GCompareDataFunc) cmp_item,
       self->search_object);
+  for (guint i = 0; i < 100; i++)
+    {
+      g_autoptr (DexFuture) check_again = NULL;
+
+      check_again = make_receive_future (self);
+      if (dex_future_is_resolved (check_again))
+        {
+          object = g_value_get_object (dex_future_get_value (check_again, NULL));
+          g_list_store_insert_sorted (
+              self->model,
+              object,
+              (GCompareDataFunc) cmp_item,
+              self->search_object);
+        }
+      else
+        break;
+    }
 
   if (!self->explicit_selection)
     gtk_list_view_scroll_to (
