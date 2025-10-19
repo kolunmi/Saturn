@@ -62,6 +62,7 @@ struct _SaturnWindow
   gboolean explicit_selection;
 
   DexFuture *select;
+  gpointer   selected_item;
 
   /* Template widgets */
   GtkEditable        *entry;
@@ -96,6 +97,7 @@ saturn_window_dispose (GObject *object)
   cancel_query (self);
   dex_clear (&self->make_preview);
   dex_clear (&self->select);
+  g_clear_object (&self->selected_item);
   g_clear_object (&self->model);
   g_clear_handle_id (&self->debounce, g_source_remove);
 
@@ -158,7 +160,21 @@ static void
 text_activated_cb (SaturnWindow *self,
                    GtkEditable  *editable)
 {
-  gtk_widget_activate_action (GTK_WIDGET (self), "select-candidate", NULL);
+  gtk_widget_activate_action (
+      GTK_WIDGET (self),
+      "select-candidate",
+      "i", -1);
+}
+
+static void
+list_view_activated_cb (SaturnWindow *self,
+                        guint         position,
+                        GtkEditable  *editable)
+{
+  gtk_widget_activate_action (
+      GTK_WIDGET (self),
+      "select-candidate",
+      "i", position);
 }
 
 static DexFuture *
@@ -274,21 +290,13 @@ static DexFuture *
 select_fiber (SaturnWindow *self)
 {
   g_autoptr (GError) local_error     = NULL;
-  guint selected                     = 0;
   g_autoptr (GObject) item           = NULL;
   SaturnProvider *provider           = NULL;
   const char     *text               = NULL;
   g_autoptr (GtkStringObject) string = NULL;
   gboolean result                    = FALSE;
 
-  selected = gtk_single_selection_get_selected (self->selection);
-  if (selected == GTK_INVALID_LIST_POSITION)
-    {
-      dex_clear (&self->select);
-      return dex_future_new_true ();
-    }
-
-  item     = g_list_model_get_item (G_LIST_MODEL (self->selection), selected);
+  item     = g_steal_pointer (&self->selected_item);
   provider = g_object_get_qdata (item, SATURN_PROVIDER_QUARK);
   if (provider == NULL)
     {
@@ -322,10 +330,23 @@ action_select_candidate (GtkWidget  *widget,
                          const char *action_name,
                          GVariant   *parameter)
 {
-  SaturnWindow *self = SATURN_WINDOW (widget);
+  SaturnWindow *self       = SATURN_WINDOW (widget);
+  int           selected   = 0;
+  g_autoptr (GObject) item = NULL;
 
   if (self->select != NULL)
     return;
+
+  selected = g_variant_get_int32 (parameter);
+  if (selected < 0)
+    {
+      selected = gtk_single_selection_get_selected (self->selection);
+      if (selected == GTK_INVALID_LIST_POSITION)
+        return;
+    }
+
+  g_clear_object (&self->selected_item);
+  self->selected_item = g_list_model_get_item (G_LIST_MODEL (self->selection), selected);
 
   self->select = dex_scheduler_spawn (
       dex_scheduler_get_default (),
@@ -395,11 +416,12 @@ saturn_window_class_init (SaturnWindowClass *klass)
   gtk_widget_class_bind_template_callback (widget_class, text_activated_cb);
   gtk_widget_class_bind_template_callback (widget_class, selected_changed_cb);
   gtk_widget_class_bind_template_callback (widget_class, selected_item_changed_cb);
+  gtk_widget_class_bind_template_callback (widget_class, list_view_activated_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_setup_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_teardown_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_bind_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_item_unbind_cb);
-  gtk_widget_class_install_action (widget_class, "select-candidate", NULL, action_select_candidate);
+  gtk_widget_class_install_action (widget_class, "select-candidate", "i", action_select_candidate);
   gtk_widget_class_install_action (widget_class, "move", "i", action_move);
 }
 

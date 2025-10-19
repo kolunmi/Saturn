@@ -121,6 +121,8 @@ template $SaturnWindow: Adw.ApplicationWindow {
             bind => $list_item_bind_cb(template);
             unbind => $list_item_unbind_cb(template);
           };
+
+          activate => $list_view_activated_cb(template);
         };
       }
 
