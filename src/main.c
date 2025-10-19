@@ -28,12 +28,46 @@ int
 main (int   argc,
       char *argv[])
 {
+  const char *xdg_data_dirs_envvar  = NULL;
   g_autoptr (SaturnApplication) app = NULL;
-  int ret;
+  int ret                           = 0;
 
   bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
   bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
   textdomain (GETTEXT_PACKAGE);
+
+  /* Ensure the appinfo provider detects flatpak apps */
+  xdg_data_dirs_envvar = g_getenv ("XDG_DATA_DIRS");
+  if (xdg_data_dirs_envvar != NULL)
+    {
+      g_autoptr (GStrvBuilder) builder = NULL;
+      g_auto (GStrv) xdg_data_dirs     = NULL;
+      g_autofree char *tmp             = NULL;
+      g_auto (GStrv) new_xdg_data_dirs = NULL;
+      g_autofree char *joined          = NULL;
+
+      builder       = g_strv_builder_new ();
+      xdg_data_dirs = g_strsplit (xdg_data_dirs_envvar, ":", -1);
+      g_strv_builder_addv (builder, (const char **) xdg_data_dirs);
+
+      if (!g_strv_contains (
+              (const gchar *const *) xdg_data_dirs,
+              "/var/lib/flatpak/exports/share"))
+        g_strv_builder_add (builder, "/var/lib/flatpak/exports/share");
+
+      tmp = g_build_filename (
+          g_get_home_dir (),
+          ".local/share/flatpak/exports/share",
+          NULL);
+      if (!g_strv_contains (
+              (const gchar *const *) xdg_data_dirs,
+              tmp))
+        g_strv_builder_add (builder, tmp);
+
+      new_xdg_data_dirs = g_strv_builder_end (builder);
+      joined            = g_strjoinv (":", new_xdg_data_dirs);
+      g_setenv ("XDG_DATA_DIRS", joined, TRUE);
+    }
 
   app = saturn_application_new ("io.github.kolunmi.Saturn", G_APPLICATION_DEFAULT_FLAGS);
   ret = g_application_run (G_APPLICATION (app), argc, argv);

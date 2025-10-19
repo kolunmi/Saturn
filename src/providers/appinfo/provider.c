@@ -244,9 +244,9 @@ provider_bind_list_item (SaturnProvider *self,
   GtkWidget  *right_label = NULL;
   GtkWidget  *box         = NULL;
 
-  id   = g_app_info_get_id (G_APP_INFO (object));
+  id   = "appid";
   name = g_app_info_get_name (G_APP_INFO (object));
-  icon = g_app_info_get_icon (G_APP_INFO (object));
+  icon = g_object_get_data (G_OBJECT (object), "icon");
 
   image = gtk_image_new_from_gicon (icon);
   gtk_image_set_icon_size (GTK_IMAGE (image), GTK_ICON_SIZE_LARGE);
@@ -292,12 +292,190 @@ static DexFuture *
 init_fiber (InitData *data)
 {
   g_autoptr (SaturnAppInfoProvider) self = NULL;
+  g_autoptr (GError) local_error         = NULL;
+  gboolean result                        = FALSE;
+  g_autoptr (GStrvBuilder) builder       = NULL;
+  const char *xdg_data_dirs_envvar       = NULL;
+  g_auto (GStrv) search_dirs             = NULL;
 
   self = g_weak_ref_get (&data->self);
   if (self == NULL)
     return NULL;
 
-  self->infos = g_app_info_get_all ();
+  builder = g_strv_builder_new ();
+  // g_strv_builder_add (
+  //     builder,
+  //     "/var/lib/flatpak/exports/share");
+  // g_strv_builder_take (
+  //     builder,
+  //     g_build_filename (
+  //         g_get_home_dir (),
+  //         ".local/share/flatpak/exports/share",
+  //         NULL));
+
+  xdg_data_dirs_envvar = g_getenv ("XDG_DATA_DIRS");
+  if (xdg_data_dirs_envvar != NULL)
+    {
+      g_auto (GStrv) xdg_data_dirs = NULL;
+
+      xdg_data_dirs = g_strsplit (xdg_data_dirs_envvar, ":", -1);
+      g_strv_builder_addv (builder, (const char **) xdg_data_dirs);
+    }
+
+  search_dirs = g_strv_builder_end (builder);
+  for (guint i = 0; search_dirs[i] != NULL; i++)
+    {
+      g_autoptr (GFile) file                 = NULL;
+      g_autoptr (GFileEnumerator) enumerator = NULL;
+      g_autolist (GFileInfo) file_infos      = NULL;
+
+      file = g_file_new_build_filename (
+          search_dirs[i],
+          "applications",
+          NULL);
+      enumerator = dex_await_object (
+          dex_file_enumerate_children (
+              file,
+              G_FILE_ATTRIBUTE_STANDARD_IS_SYMLINK
+              "," G_FILE_ATTRIBUTE_STANDARD_NAME,
+              G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
+              G_PRIORITY_DEFAULT),
+          &local_error);
+      if (enumerator == NULL)
+        {
+          g_warning ("Failed to enumerate applications "
+                     "from data search dir %s: %s",
+                     search_dirs[i],
+                     local_error->message);
+          g_clear_pointer (&local_error, g_error_free);
+          continue;
+        }
+
+      file_infos = dex_await_boxed (
+          dex_file_enumerator_next_files (
+              enumerator,
+              G_MAXINT,
+              G_PRIORITY_DEFAULT),
+          &local_error);
+      if (local_error != NULL)
+        {
+          g_warning ("Failed to retrieved enumerated children "
+                     "from data search dir %s: %s",
+                     search_dirs[i],
+                     local_error->message);
+          g_clear_pointer (&local_error, g_error_free);
+          continue;
+        }
+
+      for (GList *list = file_infos; list != NULL; list = list->next)
+        {
+          GFileInfo       *file_info       = list->data;
+          const char      *name            = NULL;
+          g_autofree char *path            = NULL;
+          g_autoptr (GKeyFile) key_file    = NULL;
+          g_autofree char    *desktop_name = NULL;
+          g_autofree char    *desktop_exec = NULL;
+          GAppInfoCreateFlags create_flags = G_APP_INFO_CREATE_NONE;
+          g_autoptr (GAppInfo) app_info    = NULL;
+          g_autofree char *desktop_icon    = NULL;
+
+          name = g_file_info_get_name (file_info);
+          if (!g_str_has_suffix (name, ".desktop"))
+            continue;
+
+          path = g_build_filename (
+              search_dirs[i],
+              "applications",
+              name,
+              NULL);
+
+          key_file = g_key_file_new ();
+          result   = g_key_file_load_from_file (key_file, path, G_KEY_FILE_NONE, &local_error);
+          if (!result)
+            {
+              g_warning ("Failed to parse key file %s: %s",
+                         path,
+                         local_error->message);
+              g_clear_pointer (&local_error, g_error_free);
+              continue;
+            }
+
+          desktop_name = g_key_file_get_string (
+              key_file,
+              G_KEY_FILE_DESKTOP_GROUP,
+              G_KEY_FILE_DESKTOP_KEY_NAME,
+              NULL);
+          desktop_exec = g_key_file_get_string (
+              key_file,
+              G_KEY_FILE_DESKTOP_GROUP,
+              G_KEY_FILE_DESKTOP_KEY_EXEC,
+              NULL);
+
+          if (desktop_name == NULL ||
+              desktop_exec == NULL)
+            {
+              g_warning ("Failed to get \"Name\" and \"Exec\""
+                         " keys from desktop file %s",
+                         path);
+              continue;
+            }
+
+          if (g_key_file_get_boolean (
+                  key_file,
+                  G_KEY_FILE_DESKTOP_GROUP,
+                  G_KEY_FILE_DESKTOP_KEY_TERMINAL,
+                  NULL))
+            create_flags |= G_APP_INFO_CREATE_NEEDS_TERMINAL;
+
+          if (g_key_file_get_boolean (
+                  key_file,
+                  G_KEY_FILE_DESKTOP_GROUP,
+                  G_KEY_FILE_DESKTOP_KEY_STARTUP_NOTIFY,
+                  NULL))
+            create_flags |= G_APP_INFO_CREATE_SUPPORTS_STARTUP_NOTIFICATION;
+
+          app_info = g_app_info_create_from_commandline (
+              desktop_exec, desktop_name, create_flags, &local_error);
+          if (app_info == NULL)
+            {
+              g_warning ("Failed to create app info object "
+                         "for desktop file %s: %s",
+                         path,
+                         local_error->message);
+              g_clear_pointer (&local_error, g_error_free);
+              continue;
+            }
+
+          desktop_icon = g_key_file_get_string (
+              key_file,
+              G_KEY_FILE_DESKTOP_GROUP,
+              G_KEY_FILE_DESKTOP_KEY_ICON,
+              NULL);
+          if (desktop_icon != NULL)
+            {
+              g_autoptr (GIcon) icon = NULL;
+
+              icon = g_icon_new_for_string (desktop_icon, &local_error);
+              if (icon != NULL)
+                g_object_set_data_full (
+                    G_OBJECT (app_info),
+                    "icon",
+                    g_steal_pointer (&icon),
+                    g_object_unref);
+              else
+                {
+                  g_warning ("Could not create icon from string \"%s\" "
+                             "from desktop file %s: %s",
+                             desktop_icon,
+                             path,
+                             local_error->message);
+                  g_clear_pointer (&local_error, g_error_free);
+                }
+            }
+
+          self->infos = g_list_prepend (self->infos, g_steal_pointer (&app_info));
+        }
+    }
 
   return dex_future_new_true ();
 }
@@ -343,6 +521,7 @@ query_fiber (QueryData *data)
           (name != NULL && strcasestr (name, query)))
         {
           g_autoptr (GAppInfo) dup = NULL;
+          GIcon *icon              = NULL;
 
           dup = g_app_info_dup (info);
           g_object_set_qdata_full (
@@ -350,6 +529,14 @@ query_fiber (QueryData *data)
               SATURN_PROVIDER_QUARK,
               g_object_ref (self),
               g_object_unref);
+
+          icon = g_object_get_data (G_OBJECT (info), "icon");
+          if (icon != NULL)
+            g_object_set_data_full (
+                G_OBJECT (dup),
+                "icon",
+                g_object_ref (icon),
+                g_object_unref);
 
           g_ptr_array_add (ret, g_steal_pointer (&dup));
         }
