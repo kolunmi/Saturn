@@ -221,7 +221,7 @@ selected_changed_cb (SaturnWindow       *self,
   dex_clear (&self->make_preview);
 
   self->debounce = g_timeout_add_once (
-      150,
+      50,
       (GSourceOnceFunc) debounce_timeout,
       self);
 }
