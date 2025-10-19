@@ -506,7 +506,7 @@ static DexFuture *
 query_then_loop (DexFuture    *future,
                  SaturnWindow *self)
 {
-  gpointer         object      = NULL;
+  const GValue    *value       = NULL;
   guint            n_items     = 0;
   g_autofree char *status_text = NULL;
 
@@ -515,29 +515,37 @@ query_then_loop (DexFuture    *future,
       selected_item_changed_cb,
       self);
 
-  object = g_value_get_object (dex_future_get_value (future, NULL));
-  g_list_store_insert_sorted (
-      self->model,
-      object,
-      (GCompareDataFunc) cmp_item,
-      self->search_object);
-  for (guint i = 0; i < 100; i++)
+  value = dex_future_get_value (future, NULL);
+  if (G_VALUE_HOLDS (value, G_TYPE_PTR_ARRAY))
     {
-      g_autoptr (DexFuture) check_again = NULL;
+      GPtrArray *array = NULL;
 
-      check_again = make_receive_future (self);
-      if (dex_future_is_resolved (check_again))
+      array = g_value_get_boxed (value);
+      for (guint i = 0; i < array->len; i++)
         {
-          object = g_value_get_object (dex_future_get_value (check_again, NULL));
+          gpointer object = NULL;
+
+          object = g_ptr_array_index (array, i);
           g_list_store_insert_sorted (
               self->model,
               object,
               (GCompareDataFunc) cmp_item,
               self->search_object);
         }
-      else
-        break;
     }
+  else if (G_VALUE_HOLDS (value, G_TYPE_OBJECT))
+    {
+      gpointer object = NULL;
+
+      object = g_value_get_object (value);
+      g_list_store_insert_sorted (
+          self->model,
+          object,
+          (GCompareDataFunc) cmp_item,
+          self->search_object);
+    }
+  else
+    g_assert_not_reached ();
 
   if (!self->explicit_selection)
     gtk_list_view_scroll_to (

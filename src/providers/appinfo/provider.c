@@ -307,6 +307,7 @@ query_fiber (QueryData *data)
 {
   g_autoptr (SaturnAppInfoProvider) self = NULL;
   const char *query                      = NULL;
+  g_autoptr (GPtrArray) ret              = NULL;
   g_autoptr (GMutexLocker) locker        = NULL;
   gboolean result                        = FALSE;
 
@@ -318,6 +319,7 @@ query_fiber (QueryData *data)
     }
 
   query = gtk_string_object_get_string (GTK_STRING_OBJECT (data->object));
+  ret   = g_ptr_array_new_with_free_func (g_object_unref);
 
   if (self->init != NULL &&
       !dex_await (dex_ref (self->init), NULL))
@@ -349,17 +351,21 @@ query_fiber (QueryData *data)
               g_object_ref (self),
               g_object_unref);
 
-          result = dex_await (
-              dex_channel_send (
-                  data->channel,
-                  dex_future_new_for_object (dup)),
-              NULL);
-          if (!result)
-            {
-              dex_channel_close_send (data->channel);
-              return dex_future_new_true ();
-            }
+          g_ptr_array_add (ret, g_steal_pointer (&dup));
         }
+    }
+
+  result = dex_await (
+      dex_channel_send (
+          data->channel,
+          dex_future_new_take_boxed (
+              G_TYPE_PTR_ARRAY,
+              g_steal_pointer (&ret))),
+      NULL);
+  if (!result)
+    {
+      dex_channel_close_send (data->channel);
+      return dex_future_new_true ();
     }
 
   dex_channel_close_send (data->channel);

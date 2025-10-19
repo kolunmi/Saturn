@@ -102,6 +102,7 @@ query_fiber (QueryData *data);
 static gboolean
 query_recurse (SaturnFileSystemProvider *self,
                DexChannel               *channel,
+               GPtrArray               **buildup,
                FsNode                   *node,
                GPtrArray                *components,
                const char               *query);
@@ -536,8 +537,10 @@ query_fiber (QueryData *data)
 {
   g_autoptr (SaturnFileSystemProvider) self = NULL;
   const char *query                         = NULL;
+  g_autoptr (GPtrArray) buildup             = NULL;
   g_autoptr (GMutexLocker) locker           = NULL;
   GHashTableIter iter                       = { 0 };
+  gboolean       result                     = FALSE;
 
   self = g_weak_ref_get (&data->self);
   if (self == NULL)
@@ -546,15 +549,15 @@ query_fiber (QueryData *data)
       return NULL;
     }
 
-  query  = gtk_string_object_get_string (GTK_STRING_OBJECT (data->object));
-  locker = g_mutex_locker_new (&data->work_data->mutex);
+  query   = gtk_string_object_get_string (GTK_STRING_OBJECT (data->object));
+  buildup = g_ptr_array_new_with_free_func (g_object_unref);
+  locker  = g_mutex_locker_new (&data->work_data->mutex);
 
   g_hash_table_iter_init (&iter, data->work_data->paths);
   for (;;)
     {
       char      *prefix                = NULL;
       GPtrArray *array                 = NULL;
-      gboolean   result                = FALSE;
       g_autoptr (GPtrArray) components = NULL;
 
       result = g_hash_table_iter_next (
@@ -574,7 +577,7 @@ query_fiber (QueryData *data)
           node = g_ptr_array_index (array, i);
 
           g_ptr_array_add (components, node->component);
-          result = query_recurse (self, data->channel, node, components, query);
+          result = query_recurse (self, data->channel, &buildup, node, components, query);
           g_ptr_array_remove_index (components, components->len - 1);
 
           if (!result)
@@ -585,6 +588,22 @@ query_fiber (QueryData *data)
         }
     }
 
+  if (buildup != NULL && buildup->len > 0)
+    {
+      result = dex_await (
+          dex_channel_send (
+              data->channel,
+              dex_future_new_take_boxed (
+                  G_TYPE_PTR_ARRAY,
+                  g_steal_pointer (&buildup))),
+          NULL);
+      if (!result)
+        {
+          dex_channel_close_send (data->channel);
+          return dex_future_new_false ();
+        }
+    }
+
   dex_channel_close_send (data->channel);
   return dex_future_new_true ();
 }
@@ -592,6 +611,7 @@ query_fiber (QueryData *data)
 static gboolean
 query_recurse (SaturnFileSystemProvider *self,
                DexChannel               *channel,
+               GPtrArray               **buildup,
                FsNode                   *node,
                GPtrArray                *components,
                const char               *query)
@@ -607,7 +627,7 @@ query_recurse (SaturnFileSystemProvider *self,
           child = g_ptr_array_index (node->children, i);
 
           g_ptr_array_add (components, child->component);
-          result = query_recurse (self, channel, child, components, query);
+          result = query_recurse (self, channel, buildup, child, components, query);
           g_ptr_array_remove_index (components, components->len - 1);
 
           if (!result)
@@ -633,15 +653,24 @@ query_recurse (SaturnFileSystemProvider *self,
           g_object_ref (self),
           g_object_unref);
 
-      result = dex_await (
-          dex_channel_send (
-              channel,
-              dex_future_new_for_object (file)),
-          NULL);
-      if (!result)
+      if (*buildup == NULL)
+        *buildup = g_ptr_array_new_with_free_func (g_object_unref);
+      g_ptr_array_add (*buildup, g_steal_pointer (&file));
+
+      if ((*buildup)->len >= 0xff)
         {
-          dex_channel_close_send (channel);
-          return FALSE;
+          result = dex_await (
+              dex_channel_send (
+                  channel,
+                  dex_future_new_take_boxed (
+                      G_TYPE_PTR_ARRAY,
+                      g_steal_pointer (buildup))),
+              NULL);
+          if (!result)
+            {
+              dex_channel_close_send (channel);
+              return FALSE;
+            }
         }
     }
 
