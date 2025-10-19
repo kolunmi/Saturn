@@ -547,7 +547,8 @@ query_then_loop (DexFuture    *future,
   else
     g_assert_not_reached ();
 
-  if (!self->explicit_selection)
+  if (!self->explicit_selection &&
+      g_list_model_get_n_items (G_LIST_MODEL (self->model)) > 0)
     gtk_list_view_scroll_to (
         self->list_view,
         0,
