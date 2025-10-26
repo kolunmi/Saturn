@@ -507,7 +507,6 @@ static DexFuture *
 query_then_loop (DexFuture    *future,
                  SaturnWindow *self)
 {
-  const GValue    *value       = NULL;
   guint            n_items     = 0;
   g_autofree char *status_text = NULL;
 
@@ -516,37 +515,47 @@ query_then_loop (DexFuture    *future,
       selected_item_changed_cb,
       self);
 
-  value = dex_future_get_value (future, NULL);
-  if (G_VALUE_HOLDS (value, G_TYPE_PTR_ARRAY))
+  for (guint i = 0; i < self->futures->len; i++)
     {
-      GPtrArray *array = NULL;
+      const GValue *value = NULL;
 
-      array = g_value_get_boxed (value);
-      for (guint i = 0; i < array->len; i++)
+      value = dex_future_get_value (
+          g_ptr_array_index (self->futures, i),
+          NULL);
+      if (value != NULL)
         {
-          gpointer object = NULL;
+          if (G_VALUE_HOLDS (value, G_TYPE_PTR_ARRAY))
+            {
+              GPtrArray *array = NULL;
 
-          object = g_ptr_array_index (array, i);
-          g_list_store_insert_sorted (
-              self->model,
-              object,
-              (GCompareDataFunc) cmp_item,
-              self->search_object);
+              array = g_value_get_boxed (value);
+              for (guint j = 0; j < array->len; j++)
+                {
+                  gpointer object = NULL;
+
+                  object = g_ptr_array_index (array, j);
+                  g_list_store_insert_sorted (
+                      self->model,
+                      object,
+                      (GCompareDataFunc) cmp_item,
+                      self->search_object);
+                }
+            }
+          else if (G_VALUE_HOLDS (value, G_TYPE_OBJECT))
+            {
+              gpointer object = NULL;
+
+              object = g_value_get_object (value);
+              g_list_store_insert_sorted (
+                  self->model,
+                  object,
+                  (GCompareDataFunc) cmp_item,
+                  self->search_object);
+            }
+          else
+            g_assert_not_reached ();
         }
     }
-  else if (G_VALUE_HOLDS (value, G_TYPE_OBJECT))
-    {
-      gpointer object = NULL;
-
-      object = g_value_get_object (value);
-      g_list_store_insert_sorted (
-          self->model,
-          object,
-          (GCompareDataFunc) cmp_item,
-          self->search_object);
-    }
-  else
-    g_assert_not_reached ();
 
   if (!self->explicit_selection &&
       g_list_model_get_n_items (G_LIST_MODEL (self->model)) > 0)
