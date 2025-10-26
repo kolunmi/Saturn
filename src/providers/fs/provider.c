@@ -349,7 +349,6 @@ provider_bind_preview (SaturnProvider *self,
 
   if (info != NULL)
     {
-
       content_type = g_file_info_get_content_type (info);
 
       if (g_content_type_is_a (content_type, "text/*"))
@@ -487,12 +486,12 @@ work_recurse (WorkData  *data,
 
   for (;;)
     {
-      g_autoptr (GFileInfo) info    = NULL;
-      g_autoptr (GFile) child       = NULL;
-      GFileType        file_type    = G_FILE_TYPE_UNKNOWN;
-      const char      *content_type = NULL;
-      g_autofree char *basename     = NULL;
-      FsNode          *node         = NULL;
+      g_autoptr (GFileInfo) info = NULL;
+      g_autoptr (GFile) child    = NULL;
+      GFileType   file_type      = G_FILE_TYPE_UNKNOWN;
+      const char *content_type   = NULL;
+      const char *basename       = NULL;
+      FsNode     *node           = NULL;
 
       info = g_file_enumerator_next_file (enumerator, NULL, &local_error);
       if (info == NULL)
@@ -506,7 +505,7 @@ work_recurse (WorkData  *data,
       child        = g_file_enumerator_get_child (enumerator, info);
       file_type    = g_file_info_get_file_type (info);
       content_type = g_file_info_get_content_type (info);
-      basename     = g_file_get_basename (child);
+      basename     = g_file_info_get_name (info);
 
       if (g_strcmp0 (basename, ".config") != 0 &&
           g_str_has_prefix (basename, "."))
@@ -549,9 +548,8 @@ query_fiber (QueryData *data)
       return NULL;
     }
 
-  query   = gtk_string_object_get_string (GTK_STRING_OBJECT (data->object));
-  buildup = g_ptr_array_new_with_free_func (g_object_unref);
-  locker  = g_mutex_locker_new (&data->work_data->mutex);
+  query  = gtk_string_object_get_string (GTK_STRING_OBJECT (data->object));
+  locker = g_mutex_locker_new (&data->work_data->mutex);
 
   g_hash_table_iter_init (&iter, data->work_data->paths);
   for (;;)
@@ -585,22 +583,22 @@ query_fiber (QueryData *data)
               dex_channel_close_send (data->channel);
               return dex_future_new_false ();
             }
-        }
-    }
 
-  if (buildup != NULL && buildup->len > 0)
-    {
-      result = dex_await (
-          dex_channel_send (
-              data->channel,
-              dex_future_new_take_boxed (
-                  G_TYPE_PTR_ARRAY,
-                  g_steal_pointer (&buildup))),
-          NULL);
-      if (!result)
-        {
-          dex_channel_close_send (data->channel);
-          return dex_future_new_false ();
+          if (buildup != NULL && buildup->len > 0)
+            {
+              result = dex_await (
+                  dex_channel_send (
+                      data->channel,
+                      dex_future_new_take_boxed (
+                          G_TYPE_PTR_ARRAY,
+                          g_steal_pointer (&buildup))),
+                  NULL);
+              if (!result)
+                {
+                  dex_channel_close_send (data->channel);
+                  return dex_future_new_false ();
+                }
+            }
         }
     }
 

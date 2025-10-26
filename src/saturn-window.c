@@ -54,6 +54,7 @@ struct _SaturnWindow
 
   DexFuture *query;
   GPtrArray *channels;
+  GPtrArray *futures;
   gpointer   search_object;
 
   guint      debounce;
@@ -565,7 +566,7 @@ query_then_loop (DexFuture    *future,
   gtk_label_set_label (self->status_label, status_text);
 
   return dex_future_finally (
-      dex_timeout_new_usec (20),
+      dex_timeout_new_usec (100),
       (DexFutureCallback) timeout_finally,
       self, NULL);
 }
@@ -581,23 +582,45 @@ static DexFuture *
 make_receive_future (SaturnWindow *self)
 {
   g_autoptr (GPtrArray) futures = NULL;
+  g_autoptr (DexFuture) ret     = NULL;
 
   if (self->channels == NULL ||
       self->channels->len == 0)
     return dex_future_new_reject (G_IO_ERROR, G_IO_ERROR_CANCELLED, "No provider channels");
 
+  if (self->futures != NULL)
+    g_assert (self->futures->len == self->channels->len);
+
   futures = g_ptr_array_new_with_free_func (dex_unref);
   for (guint i = 0; i < self->channels->len; i++)
     {
-      DexChannel *channel = NULL;
+      DexFuture *last              = NULL;
+      g_autoptr (DexFuture) future = NULL;
 
-      channel = g_ptr_array_index (self->channels, i);
-      g_ptr_array_add (futures, dex_channel_receive (channel));
+      if (self->futures != NULL)
+        last = g_ptr_array_index (self->futures, i);
+      if (last != NULL &&
+          dex_future_is_pending (last))
+        future = dex_ref (last);
+      else
+        {
+          DexChannel *channel = NULL;
+
+          channel = g_ptr_array_index (self->channels, i);
+          future  = dex_channel_receive (channel);
+        }
+
+      g_ptr_array_add (futures, g_steal_pointer (&future));
     }
 
-  return dex_future_anyv (
+  ret = dex_future_anyv (
       (DexFuture *const *) futures->pdata,
       futures->len);
+
+  g_clear_pointer (&self->futures, g_ptr_array_unref);
+  self->futures = g_steal_pointer (&futures);
+
+  return g_steal_pointer (&ret);
 }
 
 static void
@@ -616,6 +639,7 @@ cancel_query (SaturnWindow *self)
         }
     }
   g_clear_pointer (&self->channels, g_ptr_array_unref);
+  g_clear_pointer (&self->futures, g_ptr_array_unref);
   g_clear_object (&self->search_object);
 }
 
