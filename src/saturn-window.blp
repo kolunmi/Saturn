@@ -4,7 +4,7 @@ using Adw 1;
 template $SaturnWindow: Adw.ApplicationWindow {
   title: _("Saturn");
   default-width: 1400;
-  default-height: 600;
+  default-height: 800;
 
   ShortcutController {
     Shortcut {
@@ -58,7 +58,10 @@ template $SaturnWindow: Adw.ApplicationWindow {
 
   content: Paned {
     orientation: horizontal;
+    position: 0;
+    resize-start-child: false;
     shrink-start-child: false;
+    shrink-end-child: false;
 
     start-child: Adw.ToolbarView {
       [top]
@@ -77,7 +80,6 @@ template $SaturnWindow: Adw.ApplicationWindow {
             "main-entry",
           ]
           receives-default: true;
-          width-request: 300;
           halign: fill;
           hexpand: true;
           placeholder-text: _("Type to filter...");
@@ -134,19 +136,23 @@ template $SaturnWindow: Adw.ApplicationWindow {
     };
 
     end-child: Overlay {
-      // [overlay]
-      // Adw.HeaderBar {
-      //   show-title: false;
-      //   halign: end;
-      //   valign: start;
-      // }
+      [overlay]
+      Adw.HeaderBar {
+        styles [
+          "invisible",
+        ]
+        show-title: false;
+        halign: fill;
+        valign: start;
+        show-start-title-buttons: false;
+        show-end-title-buttons: false;
+      }
 
       child: Adw.Bin preview_bin {
         styles [
           "view",
         ]
         width-request: 300;
-        hexpand: true;
       };
     };
   };

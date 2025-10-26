@@ -26,3 +26,9 @@
     font-family: monospace;
     font-size: medium;
 }
+
+.invisible {
+    background-color: transparent;
+    box-shadow: none;
+    border: none;
+}
