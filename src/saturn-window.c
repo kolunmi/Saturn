@@ -26,17 +26,19 @@
 #include "saturn-provider.h"
 #include "saturn-window.h"
 
+#include "util.h"
+
 static void
 start_query (SaturnWindow *self,
              gpointer      search_object);
 
 static DexFuture *
-query_then_loop (DexFuture    *future,
-                 SaturnWindow *self);
+query_then_loop (DexFuture *future,
+                 GWeakRef  *wr);
 
 static DexFuture *
-timeout_finally (DexFuture    *future,
-                 SaturnWindow *self);
+timeout_finally (DexFuture *future,
+                 GWeakRef  *wr);
 
 static DexFuture *
 make_receive_future (SaturnWindow *self);
@@ -179,11 +181,14 @@ list_view_activated_cb (SaturnWindow *self,
 }
 
 static DexFuture *
-make_preview_fiber (SaturnWindow *self)
+make_preview_fiber (GWeakRef *wr)
 {
-  guint selected           = 0;
-  g_autoptr (GObject) item = NULL;
-  SaturnProvider *provider = NULL;
+  g_autoptr (SaturnWindow) self = NULL;
+  guint selected                = 0;
+  g_autoptr (GObject) item      = NULL;
+  SaturnProvider *provider      = NULL;
+
+  saturn_weak_get_or_return_reject (self, wr);
 
   selected = gtk_single_selection_get_selected (self->selection);
   if (selected == GTK_INVALID_LIST_POSITION)
@@ -210,7 +215,7 @@ debounce_timeout (SaturnWindow *self)
   self->make_preview = dex_scheduler_spawn (
       dex_scheduler_get_default (),
       0, (DexFiberFunc) make_preview_fiber,
-      self, NULL);
+      saturn_track_weak (self), saturn_weak_release);
 }
 
 static void
@@ -288,14 +293,17 @@ list_item_unbind_cb (SaturnWindow             *self,
 }
 
 static DexFuture *
-select_fiber (SaturnWindow *self)
+select_fiber (GWeakRef *wr)
 {
   g_autoptr (GError) local_error     = NULL;
+  g_autoptr (SaturnWindow) self      = NULL;
   g_autoptr (GObject) item           = NULL;
   SaturnProvider *provider           = NULL;
   const char     *text               = NULL;
   g_autoptr (GtkStringObject) string = NULL;
   gboolean result                    = FALSE;
+
+  saturn_weak_get_or_return_reject (self, wr);
 
   item     = g_steal_pointer (&self->selected_item);
   provider = g_object_get_qdata (item, SATURN_PROVIDER_QUARK);
@@ -352,7 +360,7 @@ action_select_candidate (GtkWidget  *widget,
   self->select = dex_scheduler_spawn (
       dex_scheduler_get_default (),
       0, (DexFiberFunc) select_fiber,
-      self, NULL);
+      saturn_track_weak (self), saturn_weak_release);
 }
 
 static void
@@ -500,15 +508,18 @@ start_query (SaturnWindow *self,
   self->query = dex_future_then_loop (
       make_receive_future (self),
       (DexFutureCallback) query_then_loop,
-      self, NULL);
+      saturn_track_weak (self), saturn_weak_release);
 }
 
 static DexFuture *
-query_then_loop (DexFuture    *future,
-                 SaturnWindow *self)
+query_then_loop (DexFuture *future,
+                 GWeakRef  *wr)
 {
-  guint            n_items     = 0;
-  g_autofree char *status_text = NULL;
+  g_autoptr (SaturnWindow) self = NULL;
+  guint            n_items      = 0;
+  g_autofree char *status_text  = NULL;
+
+  saturn_weak_get_or_return_reject (self, wr);
 
   g_signal_handlers_block_by_func (
       self->selection,
@@ -577,13 +588,17 @@ query_then_loop (DexFuture    *future,
   return dex_future_finally (
       dex_timeout_new_usec (100),
       (DexFutureCallback) timeout_finally,
-      self, NULL);
+      saturn_track_weak (self), saturn_weak_release);
 }
 
 static DexFuture *
-timeout_finally (DexFuture    *future,
-                 SaturnWindow *self)
+timeout_finally (DexFuture *future,
+                 GWeakRef  *wr)
 {
+  g_autoptr (SaturnWindow) self = NULL;
+
+  saturn_weak_get_or_return_reject (self, wr);
+
   return make_receive_future (self);
 }
 
