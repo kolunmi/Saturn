@@ -21,6 +21,7 @@
 #define G_LOG_DOMAIN "SATURN::FILE-SYSTEM-PROVIDER"
 
 #include "config.h"
+#include <glib/gi18n.h>
 
 #include "provider.h"
 #include "saturn-provider.h"
@@ -275,6 +276,23 @@ provider_bind_preview (SaturnProvider *self,
                        gpointer        object,
                        AdwBin         *preview)
 {
+  const char      *name        = NULL;
+  GIcon           *icon        = NULL;
+  g_autofree char *icon_string = NULL;
+  GtkWidget       *page        = NULL;
+
+  name = g_app_info_get_name (G_APP_INFO (object));
+
+  icon = g_object_get_data (G_OBJECT (object), "icon");
+  if (icon != NULL)
+    icon_string = g_icon_to_string (icon);
+
+  page = adw_status_page_new ();
+  adw_status_page_set_title (ADW_STATUS_PAGE (page), name);
+  adw_status_page_set_description (ADW_STATUS_PAGE (page), _ ("Launch Application"));
+  adw_status_page_set_icon_name (ADW_STATUS_PAGE (page), icon_string);
+
+  adw_bin_set_child (preview, page);
 }
 
 static void
