@@ -137,12 +137,22 @@ saturn_application_init (SaturnApplication *self)
       "app.quit",
       (const char *[]) { "<primary>q", NULL });
 
-  fs      = g_object_new (SATURN_TYPE_FILE_SYSTEM_PROVIDER, NULL);
-  appinfo = g_object_new (SATURN_TYPE_APP_INFO_PROVIDER, NULL);
-
   self->providers = g_list_store_new (SATURN_TYPE_PROVIDER);
-  g_list_store_append (self->providers, fs);
-  g_list_store_append (self->providers, appinfo);
+
+#define APPEND_PROVIDER(...)                     \
+  G_STMT_START                                   \
+  {                                              \
+    g_autoptr (GObject) _obj = NULL;             \
+                                                 \
+    _obj = g_object_new (__VA_ARGS__, NULL);     \
+    g_list_store_append (self->providers, _obj); \
+  }                                              \
+  G_STMT_END
+
+  APPEND_PROVIDER (SATURN_TYPE_FILE_SYSTEM_PROVIDER);
+  APPEND_PROVIDER (SATURN_TYPE_APP_INFO_PROVIDER);
+
+#undef APPEND_PROVIDER
 
   self->inits = g_ptr_array_new_with_free_func (dex_unref);
   n_providers = g_list_model_get_n_items (G_LIST_MODEL (self->providers));
