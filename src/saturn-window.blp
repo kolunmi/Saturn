@@ -56,48 +56,54 @@ template $SaturnWindow: Adw.ApplicationWindow {
     }
   }
 
-  content: Adw.ToolbarView {
-    [top]
-    Adw.HeaderBar {
-      show-title: false;
+  content: Paned {
+    orientation: horizontal;
+    shrink-start-child: false;
 
-      [start]
-      MenuButton {
-        primary: true;
-        icon-name: "open-menu-symbolic";
-        tooltip-text: _("Main Menu");
-        menu-model: primary_menu;
+    start-child: Adw.ToolbarView {
+      [top]
+      Adw.HeaderBar {
+        show-title: false;
+
+        [start]
+        Image {
+          margin-start: 10;
+          icon-name: "system-search-symbolic";
+        }
+
+        [start]
+        Text entry {
+          styles [
+            "main-entry",
+          ]
+          receives-default: true;
+          width-request: 300;
+          halign: fill;
+          hexpand: true;
+          placeholder-text: _("Type to filter...");
+          changed => $text_changed_cb(template);
+          activate => $text_activated_cb(template);
+        }
+
+        [end]
+        MenuButton {
+          primary: true;
+          icon-name: "open-menu-symbolic";
+          tooltip-text: _("Main Menu");
+          menu-model: primary_menu;
+        }
+
+        [end]
+        Label status_label {
+          styles [
+            "heading",
+          ]
+          margin-end: 10;
+          xalign: 1.0;
+        }
       }
 
-      [start]
-      Text entry {
-        styles [
-          "main-entry",
-        ]
-        receives-default: true;
-        width-request: 300;
-        halign: fill;
-        hexpand: true;
-        placeholder-text: _("Type to filter...");
-        changed => $text_changed_cb(template);
-        activate => $text_activated_cb(template);
-      }
-
-      [end]
-      Label status_label {
-        styles [
-          "heading",
-        ]
-        margin-end: 10;
-        xalign: 1.0;
-      }
-    }
-
-    content: Box {
-      orientation: horizontal;
-      spacing: 10;
-
-      ScrolledWindow {
+      content: ScrolledWindow {
         width-request: 400;
         hscrollbar-policy: never;
         propagate-natural-height: true;
@@ -124,12 +130,24 @@ template $SaturnWindow: Adw.ApplicationWindow {
 
           activate => $list_view_activated_cb(template);
         };
-      }
+      };
+    };
 
-      Adw.Bin preview_bin {
+    end-child: Overlay {
+      // [overlay]
+      // Adw.HeaderBar {
+      //   show-title: false;
+      //   halign: end;
+      //   valign: start;
+      // }
+
+      child: Adw.Bin preview_bin {
+        styles [
+          "view",
+        ]
         width-request: 300;
         hexpand: true;
-      }
+      };
     };
   };
 }
