@@ -520,6 +520,8 @@ query_then_loop (DexFuture *future,
   g_autofree char *status_text  = NULL;
 
   saturn_weak_get_or_return_reject (self, wr);
+  if (self->futures == NULL)
+    return NULL;
 
   g_signal_handlers_block_by_func (
       self->selection,
@@ -598,6 +600,8 @@ timeout_finally (DexFuture *future,
   g_autoptr (SaturnWindow) self = NULL;
 
   saturn_weak_get_or_return_reject (self, wr);
+  if (self->futures == NULL)
+    return NULL;
 
   return make_receive_future (self);
 }
