@@ -18,7 +18,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-#define G_LOG_DOMAIN "SATURN::FILE-SYSTEM-PROVIDER"
+#define G_LOG_DOMAIN "SATURN::APP-INFO-PROVIDER"
 
 #include "config.h"
 #include <glib/gi18n.h>
