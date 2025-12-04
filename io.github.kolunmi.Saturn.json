@@ -10,6 +10,7 @@
         "--socket=fallback-x11",
         "--device=dri",
         "--filesystem=/var/lib/flatpak",
+        "--filesystem=home",
         "--talk-name=org.freedesktop.Flatpak",
         "--socket=wayland"
     ],
