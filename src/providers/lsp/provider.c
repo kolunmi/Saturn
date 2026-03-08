@@ -36,6 +36,8 @@ struct _SaturnLspProvider
 
   char *name;
   char *script_uri;
+
+  gboolean loaded;
 };
 
 static void
@@ -139,6 +141,7 @@ saturn_lsp_provider_constructed (GObject *object)
     }
 
   cl_eval (ecl_read_from_cstring (contents));
+  self->loaded = TRUE;
 }
 
 static void
@@ -185,7 +188,8 @@ provider_query (SaturnProvider *provider,
   g_autoptr (DexChannel) channel = NULL;
 
   channel = dex_channel_new (32);
-  if (GTK_IS_STRING_OBJECT (object))
+  if (self->loaded &&
+      GTK_IS_STRING_OBJECT (object))
     {
       const char *string          = NULL;
       g_autoptr (GString) escaped = NULL;
