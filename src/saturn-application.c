@@ -27,6 +27,7 @@
 
 #include "providers/appinfo/provider.h"
 #include "providers/fs/provider.h"
+#include "providers/lsp/provider.h"
 
 struct _SaturnApplication
 {
@@ -151,6 +152,9 @@ saturn_application_init (SaturnApplication *self)
 
   APPEND_PROVIDER (SATURN_TYPE_FILE_SYSTEM_PROVIDER);
   APPEND_PROVIDER (SATURN_TYPE_APP_INFO_PROVIDER);
+  APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
+                   "name", "test",
+                   "script-uri", "/var/home/kol/test.lsp");
 
 #undef APPEND_PROVIDER
 

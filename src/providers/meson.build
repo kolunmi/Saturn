@@ -1,2 +1,3 @@
-subdir('fs')
 subdir('appinfo')
+subdir('fs')
+subdir('lsp')

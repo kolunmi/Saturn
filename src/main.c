@@ -22,6 +22,8 @@
 
 #include <glib/gi18n.h>
 
+#include <ecl/ecl.h>
+
 #include "saturn-application.h"
 
 int
@@ -30,6 +32,16 @@ main (int   argc,
 {
   g_autoptr (SaturnApplication) app = NULL;
   int ret                           = 0;
+
+  ecl_set_option (ECL_OPT_TRAP_SIGFPE, 0);
+  ecl_set_option (ECL_OPT_TRAP_SIGINT, 0);
+  ecl_set_option (ECL_OPT_TRAP_SIGILL, 0);
+  ecl_set_option (ECL_OPT_TRAP_SIGBUS, 0);
+  ecl_set_option (ECL_OPT_TRAP_SIGPIPE, 0);
+  ecl_set_option (ECL_OPT_TRAP_INTERRUPT_SIGNAL, 0);
+  ecl_set_option (ECL_OPT_TRAP_SIGSEGV, 0);
+  g_assert (cl_boot (argc, argv) != 0);
+  cl_eval (ecl_read_from_cstring ("(in-package \"CL-USER\")"));
 
   bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
   bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");

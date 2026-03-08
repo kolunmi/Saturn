@@ -22,13 +22,20 @@ saturn_deps = [
 ]
 subdir('providers')
 
+
 saturn_sources += gnome.compile_resources('saturn-resources',
   'saturn.gresource.xml',
   c_name: 'saturn',
   dependencies: blueprints,
 )
 
+extra_c_args = run_command('ecl-config', '--cflags', check: true).stdout().strip().split()
+extra_link_args = run_command('ecl-config', '--libs', check: true).stdout().strip().split()
+
+
 executable('saturn', saturn_sources,
   dependencies: saturn_deps,
        install: true,
+     c_args: extra_c_args,
+     link_args: extra_link_args,
 )
