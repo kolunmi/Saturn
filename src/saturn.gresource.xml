@@ -3,7 +3,7 @@
   <gresource prefix="/io/github/kolunmi/Saturn">
     <file alias="style.css">gtk/style.css</file>
     <file preprocess="xml-stripblanks">saturn-window.ui</file>
-    <file>internal.lsp</file>
+    <file alias="internal.lsp">providers/lsp/internal.lsp</file>
     <file alias="calc.lsp">providers/lsp/default/calc.lsp</file>
   </gresource>
 </gresources>
