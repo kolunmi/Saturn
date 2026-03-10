@@ -295,16 +295,15 @@ provider_query (SaturnProvider *provider,
   if (self->loaded &&
       GTK_IS_STRING_OBJECT (object))
     {
-      const char *string          = NULL;
-      g_autoptr (GString) escaped = NULL;
-      g_autofree char *form       = NULL;
+      const char      *string = NULL;
+      g_autofree char *fun    = NULL;
 
-      string  = gtk_string_object_get_string (GTK_STRING_OBJECT (object));
-      escaped = g_string_new (string);
-      g_string_replace (escaped, "\"", "\\\"", 0);
-
-      form = g_strdup_printf ("(%s:query \"%s\")", self->name, escaped->str);
-      cl_eval (ecl_read_from_cstring (form));
+      string = gtk_string_object_get_string (GTK_STRING_OBJECT (object));
+      fun    = g_strdup_printf ("%s:query", self->name);
+      cl_eval (cl_list (
+          2,
+          ecl_read_from_cstring (fun),
+          ecl_make_constant_base_string (string, -1)));
     }
   else
     dex_channel_close_send (channel);
