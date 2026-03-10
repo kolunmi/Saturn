@@ -163,8 +163,8 @@ ensure_providers (SaturnApplication *self)
   APPEND_PROVIDER (SATURN_TYPE_FILE_SYSTEM_PROVIDER);
   APPEND_PROVIDER (SATURN_TYPE_APP_INFO_PROVIDER);
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
-                   "name", "test",
-                   "script-uri", "/var/home/kol/test.lsp");
+                   "name", "calc",
+                   "script-uri", "resource:///io/github/kolunmi/Saturn/calc.lsp");
 
 #undef APPEND_PROVIDER
 

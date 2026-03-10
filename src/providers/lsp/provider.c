@@ -463,13 +463,34 @@ ensure_lisp (SaturnLspProvider *self)
   /* We want providers to be able to reference widget names */
   ensure_gtk_types ();
 
-  result = g_file_get_contents (
-      self->script_uri, &contents, &length, &local_error);
-  if (!result)
+  if (g_str_has_prefix (self->script_uri, "resource://"))
     {
-      g_critical ("Failed to load script at %s: %s",
-                  self->script_uri, local_error->message);
-      return;
+      g_autoptr (GBytes) bytes = NULL;
+      gsize size               = 0;
+
+      bytes = g_resources_lookup_data (
+          self->script_uri + strlen ("resource://"),
+          G_RESOURCE_LOOKUP_FLAGS_NONE,
+          &local_error);
+      if (bytes == NULL)
+        {
+          g_critical ("Failed to load script at %s: %s",
+                      self->script_uri, local_error->message);
+          return;
+        }
+      contents = g_bytes_unref_to_data (
+          g_steal_pointer (&bytes), &size);
+    }
+  else
+    {
+      result = g_file_get_contents (
+          self->script_uri, &contents, &length, &local_error);
+      if (!result)
+        {
+          g_critical ("Failed to load script at %s: %s",
+                      self->script_uri, local_error->message);
+          return;
+        }
     }
 
   eval_before = g_strdup_printf ("(progn (defpackage :%s "
