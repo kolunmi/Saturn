@@ -32,6 +32,29 @@ saturn_sources += gnome.compile_resources('saturn-resources',
 extra_c_args = run_command('ecl-config', '--cflags', check: true).stdout().strip().split()
 extra_link_args = run_command('ecl-config', '--libs', check: true).stdout().strip().split()
 
+static_cl_libs = [
+  'split-sequence',
+  'closer-mop',
+  'trivial-garbage',
+  'global-vars',
+  'bordeaux-threads',
+  'iterate',
+  'babel',
+  'alexandria',
+  'trivial-features',
+  'cffi',
+  'cl-cffi-gtk4',
+  'cl-cffi-gtk4-init',
+  'cl-cffi-cairo',
+  'cl-cffi-glib',
+  'cl-cffi-glib-init',
+  'cl-cffi-pango',
+  'cl-cffi-graphene',
+  'cl-cffi-gdk-pixbuf',
+]
+foreach l : static_cl_libs
+  saturn_deps += [cc.find_library(l, dirs: '/app/lib/ecl-24.5.10/', static: true)]
+endforeach
 
 executable('saturn', saturn_sources,
   dependencies: saturn_deps,
