@@ -33,6 +33,10 @@ main (int   argc,
   g_autoptr (SaturnApplication) app = NULL;
   int ret                           = 0;
 
+  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
+  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
+  textdomain (GETTEXT_PACKAGE);
+
   ecl_set_option (ECL_OPT_TRAP_SIGFPE, 0);
   ecl_set_option (ECL_OPT_TRAP_SIGINT, 0);
   ecl_set_option (ECL_OPT_TRAP_SIGILL, 0);
@@ -40,12 +44,8 @@ main (int   argc,
   ecl_set_option (ECL_OPT_TRAP_SIGPIPE, 0);
   ecl_set_option (ECL_OPT_TRAP_INTERRUPT_SIGNAL, 0);
   ecl_set_option (ECL_OPT_TRAP_SIGSEGV, 0);
+  ecl_set_option (ECL_OPT_SIGNAL_HANDLING_THREAD, 0);
   g_assert (cl_boot (argc, argv) != 0);
-  cl_eval (ecl_read_from_cstring ("(in-package \"CL-USER\")"));
-
-  bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
-  bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
-  textdomain (GETTEXT_PACKAGE);
 
   app = saturn_application_new ("io.github.kolunmi.Saturn", G_APPLICATION_DEFAULT_FLAGS);
   ret = g_application_run (G_APPLICATION (app), argc, argv);

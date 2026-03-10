@@ -39,6 +39,9 @@ struct _SaturnApplication
 
 G_DEFINE_FINAL_TYPE (SaturnApplication, saturn_application, ADW_TYPE_APPLICATION)
 
+static void
+ensure_providers (SaturnApplication *self);
+
 SaturnApplication *
 saturn_application_new (const char       *application_id,
                         GApplicationFlags flags)
@@ -60,9 +63,10 @@ saturn_application_activate (GApplication *app)
 
   g_assert (SATURN_IS_APPLICATION (app));
 
-  self   = SATURN_APPLICATION (app);
-  window = gtk_application_get_active_window (GTK_APPLICATION (app));
+  self = SATURN_APPLICATION (app);
+  ensure_providers (self);
 
+  window = gtk_application_get_active_window (GTK_APPLICATION (app));
   if (window == NULL)
     window = g_object_new (SATURN_TYPE_WINDOW,
                            "application", app,
@@ -124,10 +128,6 @@ static const GActionEntry app_actions[] = {
 static void
 saturn_application_init (SaturnApplication *self)
 {
-  g_autoptr (SaturnFileSystemProvider) fs   = NULL;
-  g_autoptr (SaturnAppInfoProvider) appinfo = NULL;
-  guint n_providers                         = 0;
-
   g_action_map_add_action_entries (
       G_ACTION_MAP (self),
       app_actions,
@@ -137,7 +137,17 @@ saturn_application_init (SaturnApplication *self)
       GTK_APPLICATION (self),
       "app.quit",
       (const char *[]) { "<primary>q", NULL });
+}
 
+static void
+ensure_providers (SaturnApplication *self)
+{
+  g_autoptr (SaturnFileSystemProvider) fs   = NULL;
+  g_autoptr (SaturnAppInfoProvider) appinfo = NULL;
+  guint n_providers                         = 0;
+
+  if (self->providers != NULL)
+    return;
   self->providers = g_list_store_new (SATURN_TYPE_PROVIDER);
 
 #define APPEND_PROVIDER(...)                     \
