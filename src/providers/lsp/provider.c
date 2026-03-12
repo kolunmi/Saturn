@@ -210,10 +210,9 @@ provider_query (SaturnProvider *provider,
                 GObject        *object,
                 GWeakRef       *store_wr)
 {
-  SaturnLspProvider *self        = SATURN_LSP_PROVIDER (provider);
-  g_autoptr (DexChannel) channel = NULL;
-  g_autofree char *fun           = NULL;
-  cl_object        result        = NULL;
+  SaturnLspProvider *self   = SATURN_LSP_PROVIDER (provider);
+  g_autofree char   *fun    = NULL;
+  cl_object          result = NULL;
 
   fun    = g_strdup_printf ("%s:query", self->name);
   result = cl_eval (cl_list (

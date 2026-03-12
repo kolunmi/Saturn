@@ -25,8 +25,6 @@
 #include "saturn-provider.h"
 #include "saturn-window.h"
 
-#include "providers/appinfo/provider.h"
-#include "providers/fs/provider.h"
 #include "providers/lsp/provider.h"
 
 struct _SaturnApplication
@@ -141,9 +139,7 @@ saturn_application_init (SaturnApplication *self)
 static void
 ensure_providers (SaturnApplication *self)
 {
-  g_autoptr (SaturnFileSystemProvider) fs   = NULL;
-  g_autoptr (SaturnAppInfoProvider) appinfo = NULL;
-  guint n_providers                         = 0;
+  guint n_providers = 0;
 
   if (self->providers != NULL)
     return;
@@ -159,8 +155,6 @@ ensure_providers (SaturnApplication *self)
   }                                              \
   G_STMT_END
 
-  APPEND_PROVIDER (SATURN_TYPE_FILE_SYSTEM_PROVIDER);
-  APPEND_PROVIDER (SATURN_TYPE_APP_INFO_PROVIDER);
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
                    "name", "color",
                    "script-uri", "resource:///io/github/kolunmi/Saturn/color.lsp");

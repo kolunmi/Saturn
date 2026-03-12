@@ -16,7 +16,6 @@ saturn_sources = [
 saturn_deps = [
   dependency('gtk4'),
   dependency('libadwaita-1', version: '>= 1.8'),
-  dependency('libdex-1', version: '>= 1.0.0'),
   dependency('gtksourceview-5', version: '>= 5.17'),
   dependency('glycin-2', version: '>= 2.0'),
   dependency('glycin-gtk4-2', version: '>= 2.0'),
