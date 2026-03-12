@@ -59,9 +59,6 @@ main (int   argc,
   bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
   textdomain (GETTEXT_PACKAGE);
 
-  gtk_init ();
-  ensure_gtk_types ();
-
   ecl_set_option (ECL_OPT_TRAP_SIGFPE, 0);
   ecl_set_option (ECL_OPT_TRAP_SIGINT, 0);
   ecl_set_option (ECL_OPT_TRAP_SIGILL, 0);
@@ -69,6 +66,7 @@ main (int   argc,
   ecl_set_option (ECL_OPT_TRAP_SIGPIPE, 0);
   ecl_set_option (ECL_OPT_TRAP_INTERRUPT_SIGNAL, 0);
   ecl_set_option (ECL_OPT_TRAP_SIGSEGV, 0);
+  ecl_set_option (ECL_OPT_SIGNAL_HANDLING_THREAD, 0);
   g_assert (cl_boot (argc, argv) != 0);
 
   cl_eval (ecl_read_from_cstring ("(require :asdf)"));
@@ -97,6 +95,9 @@ main (int   argc,
   cl_eval (ecl_read_from_cstring ("(asdf:defsystem :cl-cffi-gtk4 :name \"cl-cffi-gtk4\" :version \"0.9.0\")"));
   ecl_init_module (NULL, init_lib_CL_CFFI_GTK4);
   cl_eval (ecl_read_from_cstring ("(in-package \"CL-USER\")"));
+
+  gtk_init ();
+  ensure_gtk_types ();
 
   app = saturn_application_new ("io.github.kolunmi.Saturn", G_APPLICATION_DEFAULT_FLAGS);
   ret = g_application_run (G_APPLICATION (app), argc, argv);

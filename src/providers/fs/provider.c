@@ -26,6 +26,7 @@
 
 #include "provider.h"
 #include "saturn-provider.h"
+#include "saturn-threadsafe-list-store.h"
 #include "util.h"
 
 enum
@@ -86,26 +87,27 @@ SATURN_DEFINE_DATA (
     query,
     Query,
     {
-      GWeakRef    self;
-      WorkData   *work_data;
-      gpointer    object;
-      DexChannel *channel;
+      GWeakRef  self;
+      WorkData *work_data;
+      gpointer  object;
+      GWeakRef *store;
     },
     g_weak_ref_clear (&self->self);
     SATURN_RELEASE_DATA (work_data, work_data_unref);
     SATURN_RELEASE_DATA (object, g_object_unref);
-    SATURN_RELEASE_DATA (channel, dex_unref))
+    SATURN_RELEASE_DATA (store, saturn_weak_release))
 
 static DexFuture *
 query_fiber (QueryData *data);
 
 static gboolean
 query_recurse (SaturnFileSystemProvider *self,
-               DexChannel               *channel,
+               GWeakRef                 *store_wr,
                GPtrArray               **buildup,
                FsNode                   *node,
                GPtrArray                *components,
-               const char               *query);
+               const char               *query,
+               GObject                  *query_object);
 
 static void
 saturn_file_system_provider_dispose (GObject *object)
@@ -143,7 +145,7 @@ saturn_file_system_provider_init (SaturnFileSystemProvider *self)
   self->data = g_steal_pointer (&data);
 }
 
-static DexFuture *
+static void
 provider_init_global (SaturnProvider *provider)
 {
   SaturnFileSystemProvider *self = SATURN_FILE_SYSTEM_PROVIDER (provider);
@@ -151,20 +153,18 @@ provider_init_global (SaturnProvider *provider)
   dex_clear (&self->work);
   self->work = dex_scheduler_spawn (
       dex_thread_pool_scheduler_get_default (),
-      0, (DexFiberFunc) work_fiber,
+      DEX_STACK_SIZE, (DexFiberFunc) work_fiber,
       work_data_ref (self->data), work_data_unref);
-
-  return dex_future_new_true ();
 }
 
-static DexChannel *
+static void
 provider_query (SaturnProvider *provider,
-                GObject        *object)
+                GObject        *object,
+                GWeakRef       *store_wr)
 {
   SaturnFileSystemProvider *self = SATURN_FILE_SYSTEM_PROVIDER (provider);
   g_autoptr (DexChannel) channel = NULL;
 
-  channel = dex_channel_new (32);
   if (GTK_IS_STRING_OBJECT (object))
     {
       g_autoptr (QueryData) data = NULL;
@@ -172,18 +172,15 @@ provider_query (SaturnProvider *provider,
       data = query_data_new ();
       g_weak_ref_init (&data->self, self);
       data->work_data = work_data_ref (self->data);
-      data->channel   = dex_ref (channel);
       data->object    = g_object_ref (object);
+      /* This will be freed later, we are taking ownership */
+      data->store = store_wr;
 
       dex_future_disown (dex_scheduler_spawn (
           dex_thread_pool_scheduler_get_default (),
-          0, (DexFiberFunc) query_fiber,
+          DEX_STACK_SIZE, (DexFiberFunc) query_fiber,
           query_data_ref (data), query_data_unref));
     }
-  else
-    dex_channel_close_send (channel);
-
-  return g_steal_pointer (&channel);
 }
 
 static gsize
@@ -212,24 +209,6 @@ provider_score (SaturnProvider *self,
   return score;
 }
 
-static void
-launch_finish (GObject      *object,
-               GAsyncResult *result,
-               gpointer      user_data)
-{
-  DexPromise *promise            = user_data;
-  g_autoptr (GError) local_error = NULL;
-  gboolean success               = FALSE;
-
-  success = g_app_info_launch_default_for_uri_finish (result, &local_error);
-  if (success)
-    dex_promise_resolve_boolean (promise, TRUE);
-  else
-    dex_promise_reject (promise, g_steal_pointer (&local_error));
-
-  dex_unref (promise);
-}
-
 static gboolean
 provider_select (SaturnProvider *self,
                  gpointer        item,
@@ -244,22 +223,12 @@ provider_select (SaturnProvider *self,
   uri     = g_file_get_uri (G_FILE (item));
   promise = dex_promise_new_cancellable ();
 
-  g_app_info_launch_default_for_uri_async (
-      uri,
-      NULL,
-      dex_promise_get_cancellable (promise),
-      launch_finish,
-      dex_ref (promise));
-
-  result = dex_await_boolean (
-      (DexFuture *) g_steal_pointer (&promise),
-      &local_error);
+  result = g_app_info_launch_default_for_uri (uri, NULL, &local_error);
   if (!result)
     {
       g_critical ("Could not select file at URI %s: %s", uri, local_error->message);
       g_propagate_error (error, g_steal_pointer (&local_error));
     }
-
   return result;
 }
 
@@ -333,18 +302,18 @@ provider_bind_preview (SaturnProvider *self,
                        gpointer        object,
                        AdwBin         *preview)
 {
-  g_autoptr (GError) local_error = NULL;
-  g_autoptr (GFileInfo) info     = NULL;
-  const char *content_type       = NULL;
-  gboolean    image              = FALSE;
-  g_autoptr (GBytes) bytes       = NULL;
+  g_autoptr (GError) local_error   = NULL;
+  g_autoptr (GFileInfo) info       = NULL;
+  const char      *content_type    = NULL;
+  gboolean         image           = FALSE;
+  g_autofree char *contents        = NULL;
+  gsize            contents_length = 0;
 
-  info = dex_await_object (
-      dex_file_query_info (
-          G_FILE (object),
-          G_FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE,
-          G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
-          G_PRIORITY_DEFAULT),
+  info = g_file_query_info (
+      G_FILE (object),
+      G_FILE_ATTRIBUTE_STANDARD_CONTENT_TYPE,
+      G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
+      NULL,
       &local_error);
 
   if (info != NULL)
@@ -352,14 +321,12 @@ provider_bind_preview (SaturnProvider *self,
       content_type = g_file_info_get_content_type (info);
 
       if (g_content_type_is_a (content_type, "text/*"))
-        bytes = dex_await_boxed (
-            dex_file_load_contents_bytes (G_FILE (object)),
-            &local_error);
+        g_file_load_contents (G_FILE (object), NULL, &contents, &contents_length, NULL, &local_error);
       else if (g_content_type_is_a (content_type, "image/*"))
         image = TRUE;
     }
 
-  if (bytes != NULL)
+  if (contents != NULL)
     {
       g_autofree char   *path            = NULL;
       GtkSourceLanguage *language        = NULL;
@@ -388,7 +355,7 @@ provider_bind_preview (SaturnProvider *self,
 
       gtk_text_buffer_set_text (
           GTK_TEXT_BUFFER (buffer),
-          g_bytes_get_data (bytes, NULL), -1);
+          contents, contents_length);
 
       view = gtk_source_view_new_with_buffer (buffer);
       gtk_text_view_set_editable (GTK_TEXT_VIEW (view), FALSE);
@@ -543,10 +510,7 @@ query_fiber (QueryData *data)
 
   self = g_weak_ref_get (&data->self);
   if (self == NULL)
-    {
-      dex_channel_close_send (data->channel);
-      return NULL;
-    }
+    return NULL;
 
   query  = gtk_string_object_get_string (GTK_STRING_OBJECT (data->object));
   locker = g_mutex_locker_new (&data->work_data->mutex);
@@ -575,44 +539,25 @@ query_fiber (QueryData *data)
           node = g_ptr_array_index (array, i);
 
           g_ptr_array_add (components, node->component);
-          result = query_recurse (self, data->channel, &buildup, node, components, query);
+          result = query_recurse (self, data->store, &buildup, node, components, query, data->object);
           g_ptr_array_remove_index (components, components->len - 1);
 
           if (!result)
-            {
-              dex_channel_close_send (data->channel);
-              return dex_future_new_false ();
-            }
-
-          if (buildup != NULL && buildup->len > 0)
-            {
-              result = dex_await (
-                  dex_channel_send (
-                      data->channel,
-                      dex_future_new_take_boxed (
-                          G_TYPE_PTR_ARRAY,
-                          g_steal_pointer (&buildup))),
-                  NULL);
-              if (!result)
-                {
-                  dex_channel_close_send (data->channel);
-                  return dex_future_new_false ();
-                }
-            }
+            return dex_future_new_false ();
         }
     }
 
-  dex_channel_close_send (data->channel);
   return dex_future_new_true ();
 }
 
 static gboolean
 query_recurse (SaturnFileSystemProvider *self,
-               DexChannel               *channel,
+               GWeakRef                 *store_wr,
                GPtrArray               **buildup,
                FsNode                   *node,
                GPtrArray                *components,
-               const char               *query)
+               const char               *query,
+               GObject                  *query_object)
 {
   gboolean result = FALSE;
 
@@ -625,7 +570,7 @@ query_recurse (SaturnFileSystemProvider *self,
           child = g_ptr_array_index (node->children, i);
 
           g_ptr_array_add (components, child->component);
-          result = query_recurse (self, channel, buildup, child, components, query);
+          result = query_recurse (self, store_wr, buildup, child, components, query, query_object);
           g_ptr_array_remove_index (components, components->len - 1);
 
           if (!result)
@@ -657,18 +602,20 @@ query_recurse (SaturnFileSystemProvider *self,
 
       if ((*buildup)->len >= 0xff)
         {
-          result = dex_await (
-              dex_channel_send (
-                  channel,
-                  dex_future_new_take_boxed (
-                      G_TYPE_PTR_ARRAY,
-                      g_steal_pointer (buildup))),
-              NULL);
-          if (!result)
+          g_autoptr (SaturnThreadsafeListStore) store = NULL;
+
+          store = g_weak_ref_get (store_wr);
+          if (store == NULL)
+            return FALSE;
+
+          for (guint i = 0; i < (*buildup)->len; i++)
             {
-              dex_channel_close_send (channel);
-              return FALSE;
+              gpointer item = NULL;
+
+              item = g_ptr_array_index (*buildup, i);
+              saturn_threadsafe_list_store_insert_sorted (store, item);
             }
+          g_ptr_array_set_size (*buildup, 0);
         }
     }
 

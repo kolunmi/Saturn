@@ -27,27 +27,21 @@ G_DEFINE_QUARK (saturn-provider-score-quark, saturn_provider_score);
 
 G_DEFINE_INTERFACE (SaturnProvider, saturn_provider, G_TYPE_OBJECT)
 
-static DexFuture *
+static void
 saturn_provider_real_init_global (SaturnProvider *self)
 {
-  return dex_future_new_true ();
 }
 
-static DexFuture *
+static void
 saturn_provider_real_deinit_global (SaturnProvider *self)
 {
-  return dex_future_new_true ();
 }
 
-static DexChannel *
+static void
 saturn_provider_real_query (SaturnProvider *self,
-                            GObject        *object)
+                            GObject        *object,
+                            GWeakRef       *store)
 {
-  g_autoptr (DexChannel) channel = NULL;
-
-  channel = dex_channel_new (0);
-  dex_channel_close_send (channel);
-  return g_steal_pointer (&channel);
 }
 
 static gsize
@@ -139,30 +133,29 @@ saturn_provider_default_init (SaturnProviderInterface *iface)
   iface->unbind_preview     = saturn_provider_real_unbind_preview;
 }
 
-DexFuture *
+void
 saturn_provider_init_global (SaturnProvider *self)
 {
-  dex_return_error_if_fail (SATURN_IS_PROVIDER (self));
-
+  g_return_if_fail (SATURN_IS_PROVIDER (self));
   return SATURN_PROVIDER_GET_IFACE (self)->init_global (self);
 }
 
-DexFuture *
+void
 saturn_provider_deinit_global (SaturnProvider *self)
 {
-  dex_return_error_if_fail (SATURN_IS_PROVIDER (self));
-
+  g_return_if_fail (SATURN_IS_PROVIDER (self));
   return SATURN_PROVIDER_GET_IFACE (self)->deinit_global (self);
 }
 
-DexChannel *
+void
 saturn_provider_query (SaturnProvider *self,
-                       GObject        *object)
+                       GObject        *object,
+                       GWeakRef       *store)
 {
-  g_return_val_if_fail (SATURN_IS_PROVIDER (self), NULL);
-  g_return_val_if_fail (G_IS_OBJECT (object), NULL);
+  g_return_if_fail (SATURN_IS_PROVIDER (self));
+  g_return_if_fail (G_IS_OBJECT (self));
 
-  return SATURN_PROVIDER_GET_IFACE (self)->query (self, object);
+  return SATURN_PROVIDER_GET_IFACE (self)->query (self, object, store);
 }
 
 gsize

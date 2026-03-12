@@ -4,6 +4,7 @@
     <file alias="style.css">gtk/style.css</file>
     <file preprocess="xml-stripblanks">saturn-window.ui</file>
     <file alias="internal.lsp">providers/lsp/internal.lsp</file>
+    <file alias="color.lsp">providers/lsp/default/color.lsp</file>
     <file alias="calc.lsp">providers/lsp/default/calc.lsp</file>
   </gresource>
 </gresources>

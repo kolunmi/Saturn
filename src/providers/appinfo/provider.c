@@ -25,6 +25,7 @@
 
 #include "provider.h"
 #include "saturn-provider.h"
+#include "saturn-threadsafe-list-store.h"
 #include "util.h"
 
 struct _SaturnAppInfoProvider
@@ -60,13 +61,13 @@ SATURN_DEFINE_DATA (
     query,
     Query,
     {
-      GWeakRef    self;
-      gpointer    object;
-      DexChannel *channel;
+      GWeakRef  self;
+      gpointer  object;
+      GWeakRef *store;
     },
     g_weak_ref_clear (&self->self);
     SATURN_RELEASE_DATA (object, g_object_unref);
-    SATURN_RELEASE_DATA (channel, dex_unref))
+    SATURN_RELEASE_DATA (store, saturn_weak_release))
 
 static DexFuture *
 query_fiber (QueryData *data);
@@ -96,7 +97,7 @@ saturn_app_info_provider_init (SaturnAppInfoProvider *self)
 {
 }
 
-static DexFuture *
+static void
 provider_init_global (SaturnProvider *provider)
 {
   SaturnAppInfoProvider *self = SATURN_APP_INFO_PROVIDER (provider);
@@ -108,38 +109,31 @@ provider_init_global (SaturnProvider *provider)
   dex_clear (&self->init);
   self->init = dex_scheduler_spawn (
       dex_thread_pool_scheduler_get_default (),
-      0, (DexFiberFunc) init_fiber,
+      DEX_STACK_SIZE, (DexFiberFunc) init_fiber,
       init_data_ref (data), init_data_unref);
-
-  return dex_future_new_true ();
 }
 
-static DexChannel *
+static void
 provider_query (SaturnProvider *provider,
-                GObject        *object)
+                GObject        *object,
+                GWeakRef       *store_wr)
 {
-  SaturnAppInfoProvider *self    = SATURN_APP_INFO_PROVIDER (provider);
-  g_autoptr (DexChannel) channel = NULL;
+  SaturnAppInfoProvider *self = SATURN_APP_INFO_PROVIDER (provider);
 
-  channel = dex_channel_new (32);
   if (GTK_IS_STRING_OBJECT (object))
     {
       g_autoptr (QueryData) data = NULL;
 
       data = query_data_new ();
       g_weak_ref_init (&data->self, self);
-      data->object  = g_object_ref (object);
-      data->channel = dex_ref (channel);
+      data->object = g_object_ref (object);
+      data->store  = store_wr;
 
       dex_future_disown (dex_scheduler_spawn (
           dex_thread_pool_scheduler_get_default (),
-          0, (DexFiberFunc) query_fiber,
+          DEX_STACK_SIZE, (DexFiberFunc) query_fiber,
           query_data_ref (data), query_data_unref));
     }
-  else
-    dex_channel_close_send (channel);
-
-  return g_steal_pointer (&channel);
 }
 
 static gsize
@@ -179,24 +173,6 @@ provider_score (SaturnProvider *self,
   return score;
 }
 
-static void
-launch_finish (GObject      *object,
-               GAsyncResult *result,
-               gpointer      user_data)
-{
-  DexPromise *promise            = user_data;
-  g_autoptr (GError) local_error = NULL;
-  gboolean success               = FALSE;
-
-  success = g_app_info_launch_uris_finish (G_APP_INFO (object), result, &local_error);
-  if (success)
-    dex_promise_resolve_boolean (promise, TRUE);
-  else
-    dex_promise_reject (promise, g_steal_pointer (&local_error));
-
-  dex_unref (promise);
-}
-
 static gboolean
 provider_select (SaturnProvider *self,
                  gpointer        item,
@@ -209,16 +185,7 @@ provider_select (SaturnProvider *self,
 
   promise = dex_promise_new_cancellable ();
 
-  g_app_info_launch_uris_async (
-      G_APP_INFO (item),
-      NULL, NULL,
-      dex_promise_get_cancellable (promise),
-      launch_finish,
-      dex_ref (promise));
-
-  result = dex_await_boolean (
-      (DexFuture *) g_steal_pointer (&promise),
-      &local_error);
+  result = g_app_info_launch_uris (G_APP_INFO (item), NULL, NULL, &local_error);
   if (!result)
     {
       const char *id = NULL;
@@ -228,7 +195,6 @@ provider_select (SaturnProvider *self,
       g_critical ("Could not launch id %s: %s", id, local_error->message);
       g_propagate_error (error, g_steal_pointer (&local_error));
     }
-
   return result;
 }
 
@@ -505,24 +471,17 @@ query_fiber (QueryData *data)
   const char *query                      = NULL;
   g_autoptr (GPtrArray) ret              = NULL;
   g_autoptr (GMutexLocker) locker        = NULL;
-  gboolean result                        = FALSE;
 
   self = g_weak_ref_get (&data->self);
   if (self == NULL)
-    {
-      dex_channel_close_send (data->channel);
-      return NULL;
-    }
+    return NULL;
 
   query = gtk_string_object_get_string (GTK_STRING_OBJECT (data->object));
   ret   = g_ptr_array_new_with_free_func (g_object_unref);
 
   if (self->init != NULL &&
       !dex_await (dex_ref (self->init), NULL))
-    {
-      dex_channel_close_send (data->channel);
-      return dex_future_new_true ();
-    }
+    return dex_future_new_true ();
 
   locker = g_mutex_locker_new (&self->mutex);
 
@@ -560,19 +519,22 @@ query_fiber (QueryData *data)
         }
     }
 
-  result = dex_await (
-      dex_channel_send (
-          data->channel,
-          dex_future_new_take_boxed (
-              G_TYPE_PTR_ARRAY,
-              g_steal_pointer (&ret))),
-      NULL);
-  if (!result)
+  if (ret->len > 0)
     {
-      dex_channel_close_send (data->channel);
-      return dex_future_new_true ();
+      g_autoptr (SaturnThreadsafeListStore) store = NULL;
+
+      store = g_weak_ref_get (data->store);
+      if (store == NULL)
+        return FALSE;
+
+      for (guint i = 0; i < ret->len; i++)
+        {
+          gpointer item = NULL;
+
+          item = g_ptr_array_index (ret, i);
+          saturn_threadsafe_list_store_insert_sorted (store, item);
+        }
     }
 
-  dex_channel_close_send (data->channel);
   return dex_future_new_true ();
 }

@@ -1,6 +1,6 @@
 /* util.h
  *
- * Copyright 2025 Eva
+ * Copyright 2026 Eva M
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,13 +22,23 @@
 
 #include <libdex.h>
 
-#define SATURN_RELEASE_DATA(name, unref) \
-  if ((unref) != NULL)                   \
-    g_clear_pointer (&self->name, (unref));
+#define saturn_maybe(_ptr, _func)     ((_ptr) != NULL ? (_func) ((_ptr)) : NULL)
+#define saturn_maybe_strdup(_ptr)     saturn_maybe (_ptr, g_strdup)
+#define saturn_maybe_ref(_ptr, _ref)  ((typeof (_ptr)) saturn_maybe (_ptr, _ref))
+#define saturn_object_maybe_ref(_obj) saturn_maybe_ref ((_obj), g_object_ref)
+#define saturn_dex_maybe_ref(_obj)    saturn_maybe_ref ((_obj), dex_ref)
 
-#define SATURN_RELEASE_UTAG(name, remove) \
-  if ((remove) != NULL)                   \
-    g_clear_handle_id (&self->name, (remove));
+#define SATURN_RELEASE_DATA(name, unref)      \
+  if ((unref) != NULL)                        \
+    {                                         \
+      g_clear_pointer (&self->name, (unref)); \
+    }
+
+#define SATURN_RELEASE_UTAG(name, remove)        \
+  if ((remove) != NULL)                          \
+    {                                            \
+      g_clear_handle_id (&self->name, (remove)); \
+    }
 
 /* va args = releases */
 #define SATURN_DEFINE_DATA(name, Name, layout, ...) \
@@ -82,6 +92,51 @@
   }                                                 \
   G_DEFINE_AUTOPTR_CLEANUP_FUNC (Name##Data, name##_data_unref);
 
+/* Be careful with deadlocks */
+typedef DexFuture SaturnGuard;
+static inline void
+saturn_guard_destroy (SaturnGuard *guard)
+{
+  if (dex_future_is_pending (guard))
+    dex_promise_resolve_boolean (DEX_PROMISE (guard), TRUE);
+  dex_unref (guard);
+}
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (SaturnGuard, saturn_guard_destroy);
+#define saturn_clear_guard(_pp) g_clear_pointer (_pp, saturn_guard_destroy)
+
+#define SATURN_BEGIN_GUARD_WITH_CONTEXT(_guard, _mutex, _gate) \
+  G_STMT_START                                                 \
+  {                                                            \
+    g_autoptr (GMutexLocker) _locker = NULL;                   \
+    g_autoptr (DexFuture) _wait      = NULL;                   \
+                                                               \
+    _locker = g_mutex_locker_new (_mutex);                     \
+    if (*(_guard) == NULL)                                     \
+      *(_guard) = (DexFuture *) dex_promise_new ();            \
+    if (*(_gate) != NULL)                                      \
+      {                                                        \
+        if (dex_future_is_pending (*(_gate)))                  \
+          _wait = g_steal_pointer (_gate);                     \
+        else                                                   \
+          dex_clear (_gate);                                   \
+      }                                                        \
+    *(_gate) = dex_ref (*(_guard));                            \
+    g_clear_pointer (&_locker, g_mutex_locker_free);           \
+                                                               \
+    if (_wait != NULL)                                         \
+      dex_await (g_steal_pointer (&_wait), NULL);              \
+  }                                                            \
+  G_STMT_END
+
+#define SATURN_BEGIN_GUARD(_guard)                             \
+  G_STMT_START                                                 \
+  {                                                            \
+    static GMutex       _mutex = { 0 };                        \
+    static SaturnGuard *_gate  = NULL;                         \
+    SATURN_BEGIN_GUARD_WITH_CONTEXT (_guard, &_mutex, &_gate); \
+  }                                                            \
+  G_STMT_END
+
 /* Use with dex_scheduler_spawn */
 G_GNUC_UNUSED
 static GWeakRef *
@@ -107,6 +162,15 @@ saturn_weak_release (gpointer ptr)
   g_free (wr);
 }
 
+#define saturn_weak_get_or_return(self, wr) \
+  G_STMT_START                              \
+  {                                         \
+    (self) = g_weak_ref_get (wr);           \
+    if ((self) == NULL)                     \
+      return;                               \
+  }                                         \
+  G_STMT_END
+
 #define saturn_weak_get_or_return_reject(self, wr) \
   G_STMT_START                                     \
   {                                                \
@@ -117,4 +181,49 @@ saturn_weak_release (gpointer ptr)
           G_IO_ERROR_CANCELLED,                    \
           "Object was discarded");                 \
   }                                                \
+  G_STMT_END
+
+G_GNUC_UNUSED
+static void
+_saturn_debug_print_when_disposed_cb (gpointer ptr);
+
+SATURN_DEFINE_DATA (
+    _saturn_debug_dispose_cb,
+    _SaturnDebugDisposeCb,
+    {
+      GType       type;
+      const char *loc;
+      guint64     time;
+    },
+    _saturn_debug_print_when_disposed_cb (self);)
+
+G_GNUC_UNUSED
+static void
+_saturn_debug_print_when_disposed_cb (gpointer ptr)
+{
+  _SaturnDebugDisposeCbData *data = ptr;
+
+  g_print ("%zu OBJECT DISPOSE: type %s; from %s at %zu\n",
+           g_get_monotonic_time (),
+           g_type_name (data->type),
+           data->loc,
+           data->time);
+}
+
+#define SATURN_DEBUG_PRINT_WHEN_DISPOSED(_object)       \
+  G_STMT_START                                          \
+  {                                                     \
+    g_autoptr (_SaturnDebugDisposeCbData) _data = NULL; \
+                                                        \
+    _data       = _saturn_debug_dispose_cb_data_new (); \
+    _data->type = G_OBJECT_TYPE (_object);              \
+    _data->loc  = G_STRLOC;                             \
+    _data->time = g_get_monotonic_time ();              \
+                                                        \
+    g_object_set_data_full (                            \
+        G_OBJECT (_object),                             \
+        "SATURN_DEBUG_PRINT_WHEN_DISPOSED",             \
+        _saturn_debug_dispose_cb_data_ref (_data),      \
+        _saturn_debug_dispose_cb_data_unref);           \
+  }                                                     \
   G_STMT_END

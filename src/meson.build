@@ -11,6 +11,7 @@ saturn_sources = [
   'saturn-application.c',
   'saturn-window.c',
   'saturn-provider.c',
+  'saturn-threadsafe-list-store.c',
 ]
 saturn_deps = [
   dependency('gtk4'),

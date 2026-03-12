@@ -21,30 +21,16 @@
 #include "config.h"
 #include <glib/gi18n.h>
 
-#include <libdex.h>
-
 #include "saturn-provider.h"
+#include "saturn-threadsafe-list-store.h"
 #include "saturn-window.h"
-
 #include "util.h"
+
+/* #include "util.h" */
 
 static void
 start_query (SaturnWindow *self,
              gpointer      search_object);
-
-static DexFuture *
-query_then_loop (DexFuture *future,
-                 GWeakRef  *wr);
-
-static DexFuture *
-timeout_finally (DexFuture *future,
-                 GWeakRef  *wr);
-
-static DexFuture *
-make_receive_future (SaturnWindow *self);
-
-static void
-cancel_query (SaturnWindow *self);
 
 struct _SaturnWindow
 {
@@ -52,20 +38,11 @@ struct _SaturnWindow
 
   GListModel *providers;
 
-  GListStore *model;
+  SaturnThreadsafeListStore *model;
 
-  DexFuture *query;
-  GPtrArray *channels;
-  GPtrArray *futures;
-  gpointer   search_object;
-
-  guint      debounce;
-  DexFuture *make_preview;
-
+  guint    debounce;
   gboolean explicit_selection;
-
-  DexFuture *select;
-  gpointer   selected_item;
+  gpointer selected_item;
 
   /* Template widgets */
   GtkEditable        *entry;
@@ -97,9 +74,6 @@ saturn_window_dispose (GObject *object)
 {
   SaturnWindow *self = SATURN_WINDOW (object);
 
-  cancel_query (self);
-  dex_clear (&self->make_preview);
-  dex_clear (&self->select);
   g_clear_object (&self->selected_item);
   g_clear_object (&self->model);
   g_clear_handle_id (&self->debounce, g_source_remove);
@@ -180,42 +154,25 @@ list_view_activated_cb (SaturnWindow *self,
       "i", position);
 }
 
-static DexFuture *
-make_preview_fiber (GWeakRef *wr)
+static void
+debounce_timeout (SaturnWindow *self)
 {
-  g_autoptr (SaturnWindow) self = NULL;
-  guint selected                = 0;
-  g_autoptr (GObject) item      = NULL;
-  SaturnProvider *provider      = NULL;
+  guint selected           = 0;
+  g_autoptr (GObject) item = NULL;
+  SaturnProvider *provider = NULL;
 
-  saturn_weak_get_or_return_reject (self, wr);
+  self->debounce = 0;
 
   selected = gtk_single_selection_get_selected (self->selection);
   if (selected == GTK_INVALID_LIST_POSITION)
-    {
-      dex_clear (&self->select);
-      return NULL;
-    }
+    return;
 
   item     = g_list_model_get_item (G_LIST_MODEL (self->selection), selected);
   provider = g_object_get_qdata (item, SATURN_PROVIDER_QUARK);
   if (provider == NULL)
-    return dex_future_new_true ();
+    return;
 
   saturn_provider_bind_preview (provider, item, self->preview_bin);
-  return dex_future_new_true ();
-}
-
-static void
-debounce_timeout (SaturnWindow *self)
-{
-  self->debounce = 0;
-  dex_clear (&self->make_preview);
-
-  self->make_preview = dex_scheduler_spawn (
-      dex_scheduler_get_default (),
-      0, (DexFiberFunc) make_preview_fiber,
-      saturn_track_weak (self), saturn_weak_release);
 }
 
 static void
@@ -224,8 +181,6 @@ selected_changed_cb (SaturnWindow       *self,
                      GtkSingleSelection *selection)
 {
   g_clear_handle_id (&self->debounce, g_source_remove);
-  dex_clear (&self->make_preview);
-
   self->debounce = g_timeout_add_once (
       50,
       (GSourceOnceFunc) debounce_timeout,
@@ -292,59 +247,19 @@ list_item_unbind_cb (SaturnWindow             *self,
   saturn_provider_unbind_list_item (provider, item, ADW_BIN (bin));
 }
 
-static DexFuture *
-select_fiber (GWeakRef *wr)
-{
-  g_autoptr (GError) local_error     = NULL;
-  g_autoptr (SaturnWindow) self      = NULL;
-  g_autoptr (GObject) item           = NULL;
-  SaturnProvider *provider           = NULL;
-  const char     *text               = NULL;
-  g_autoptr (GtkStringObject) string = NULL;
-  gboolean result                    = FALSE;
-
-  saturn_weak_get_or_return_reject (self, wr);
-
-  item     = g_steal_pointer (&self->selected_item);
-  provider = g_object_get_qdata (item, SATURN_PROVIDER_QUARK);
-  if (provider == NULL)
-    {
-      dex_clear (&self->select);
-      return dex_future_new_true ();
-    }
-
-  text = gtk_editable_get_text (self->entry);
-  if (text != NULL && *text != '\0')
-    string = gtk_string_object_new (text);
-
-  result = saturn_provider_select (
-      provider,
-      item,
-      G_OBJECT (string),
-      &local_error);
-  if (!result)
-    {
-      /* TODO: show `local_error` in UI */
-
-      dex_clear (&self->select);
-      return dex_future_new_true ();
-    }
-
-  gtk_window_close (GTK_WINDOW (self));
-  return dex_future_new_true ();
-}
-
 static void
 action_select_candidate (GtkWidget  *widget,
                          const char *action_name,
                          GVariant   *parameter)
 {
-  SaturnWindow *self       = SATURN_WINDOW (widget);
-  int           selected   = 0;
-  g_autoptr (GObject) item = NULL;
-
-  if (self->select != NULL)
-    return;
+  SaturnWindow *self                 = SATURN_WINDOW (widget);
+  g_autoptr (GError) local_error     = NULL;
+  gboolean result                    = FALSE;
+  int      selected                  = 0;
+  g_autoptr (GObject) item           = NULL;
+  SaturnProvider *provider           = NULL;
+  const char     *text               = NULL;
+  g_autoptr (GtkStringObject) string = NULL;
 
   selected = g_variant_get_int32 (parameter);
   if (selected < 0)
@@ -357,10 +272,25 @@ action_select_candidate (GtkWidget  *widget,
   g_clear_object (&self->selected_item);
   self->selected_item = g_list_model_get_item (G_LIST_MODEL (self->selection), selected);
 
-  self->select = dex_scheduler_spawn (
-      dex_scheduler_get_default (),
-      0, (DexFiberFunc) select_fiber,
-      saturn_track_weak (self), saturn_weak_release);
+  item     = g_steal_pointer (&self->selected_item);
+  provider = g_object_get_qdata (item, SATURN_PROVIDER_QUARK);
+  if (provider == NULL)
+    return;
+
+  text = gtk_editable_get_text (self->entry);
+  if (text != NULL && *text != '\0')
+    string = gtk_string_object_new (text);
+
+  result = saturn_provider_select (
+      provider,
+      item,
+      G_OBJECT (string),
+      &local_error);
+  if (!result)
+    /* TODO: show `local_error` in UI */
+    return;
+
+  gtk_window_close (GTK_WINDOW (self));
 }
 
 static void
@@ -438,10 +368,6 @@ static void
 saturn_window_init (SaturnWindow *self)
 {
   gtk_widget_init_template (GTK_WIDGET (self));
-
-  self->model = g_list_store_new (G_TYPE_OBJECT);
-  gtk_single_selection_set_model (self->selection, G_LIST_MODEL (self->model));
-
   gtk_widget_grab_focus (GTK_WIDGET (self->entry));
 }
 
@@ -472,203 +398,24 @@ start_query (SaturnWindow *self,
 {
   guint n_providers = 0;
 
-  cancel_query (self);
-
-  g_list_store_remove_all (self->model);
+  g_clear_object (&self->model);
+  gtk_single_selection_set_model (self->selection, NULL);
   self->explicit_selection = FALSE;
-
   if (search_object == NULL)
-    {
-      gtk_label_set_label (self->status_label, _ ("Waiting"));
-      return;
-    }
+    return;
 
-  self->channels      = g_ptr_array_new_with_free_func (dex_unref);
-  self->search_object = g_object_ref (search_object);
+  self->model = saturn_threadsafe_list_store_new (
+      (GCompareDataFunc) cmp_item, g_object_ref (search_object), g_object_unref);
+  gtk_single_selection_set_model (self->selection, G_LIST_MODEL (self->model));
 
   n_providers = g_list_model_get_n_items (self->providers);
   for (guint i = 0; i < n_providers; i++)
     {
       g_autoptr (SaturnProvider) provider = NULL;
-      g_autoptr (DexChannel) channel      = NULL;
 
       provider = g_list_model_get_item (self->providers, i);
-      channel  = saturn_provider_query (provider, search_object);
-
-      if (channel != NULL)
-        g_ptr_array_add (self->channels, dex_ref (channel));
+      saturn_provider_query (provider, search_object, saturn_track_weak (self->model));
     }
-  if (self->channels->len == 0)
-    {
-      cancel_query (self);
-      gtk_label_set_label (self->status_label, _ ("Waiting"));
-      return;
-    }
-
-  self->query = dex_future_then_loop (
-      make_receive_future (self),
-      (DexFutureCallback) query_then_loop,
-      saturn_track_weak (self), saturn_weak_release);
-}
-
-static DexFuture *
-query_then_loop (DexFuture *future,
-                 GWeakRef  *wr)
-{
-  g_autoptr (SaturnWindow) self = NULL;
-  guint            n_items      = 0;
-  g_autofree char *status_text  = NULL;
-
-  saturn_weak_get_or_return_reject (self, wr);
-  if (self->futures == NULL)
-    return NULL;
-
-  g_signal_handlers_block_by_func (
-      self->selection,
-      selected_item_changed_cb,
-      self);
-
-  for (guint i = 0; i < self->futures->len; i++)
-    {
-      const GValue *value = NULL;
-
-      value = dex_future_get_value (
-          g_ptr_array_index (self->futures, i),
-          NULL);
-      if (value != NULL)
-        {
-          if (G_VALUE_HOLDS (value, G_TYPE_PTR_ARRAY))
-            {
-              GPtrArray *array = NULL;
-
-              array = g_value_get_boxed (value);
-              for (guint j = 0; j < array->len; j++)
-                {
-                  gpointer object = NULL;
-
-                  object = g_ptr_array_index (array, j);
-                  g_list_store_insert_sorted (
-                      self->model,
-                      object,
-                      (GCompareDataFunc) cmp_item,
-                      self->search_object);
-                }
-            }
-          else if (G_VALUE_HOLDS (value, G_TYPE_OBJECT))
-            {
-              gpointer object = NULL;
-
-              object = g_value_get_object (value);
-              g_list_store_insert_sorted (
-                  self->model,
-                  object,
-                  (GCompareDataFunc) cmp_item,
-                  self->search_object);
-            }
-          else
-            g_assert_not_reached ();
-        }
-    }
-
-  if (!self->explicit_selection &&
-      g_list_model_get_n_items (G_LIST_MODEL (self->model)) > 0)
-    gtk_list_view_scroll_to (
-        self->list_view,
-        0,
-        GTK_LIST_SCROLL_SELECT,
-        NULL);
-
-  g_signal_handlers_unblock_by_func (
-      self->selection,
-      selected_item_changed_cb,
-      self);
-
-  n_items     = g_list_model_get_n_items (G_LIST_MODEL (self->model));
-  status_text = g_strdup_printf (_ ("%'d"), n_items);
-  gtk_label_set_label (self->status_label, status_text);
-
-  return dex_future_finally (
-      dex_timeout_new_usec (100),
-      (DexFutureCallback) timeout_finally,
-      saturn_track_weak (self), saturn_weak_release);
-}
-
-static DexFuture *
-timeout_finally (DexFuture *future,
-                 GWeakRef  *wr)
-{
-  g_autoptr (SaturnWindow) self = NULL;
-
-  saturn_weak_get_or_return_reject (self, wr);
-  if (self->futures == NULL)
-    return NULL;
-
-  return make_receive_future (self);
-}
-
-static DexFuture *
-make_receive_future (SaturnWindow *self)
-{
-  g_autoptr (GPtrArray) futures = NULL;
-  g_autoptr (DexFuture) ret     = NULL;
-
-  if (self->channels == NULL ||
-      self->channels->len == 0)
-    return dex_future_new_reject (G_IO_ERROR, G_IO_ERROR_CANCELLED, "No provider channels");
-
-  if (self->futures != NULL)
-    g_assert (self->futures->len == self->channels->len);
-
-  futures = g_ptr_array_new_with_free_func (dex_unref);
-  for (guint i = 0; i < self->channels->len; i++)
-    {
-      DexFuture *last              = NULL;
-      g_autoptr (DexFuture) future = NULL;
-
-      if (self->futures != NULL)
-        last = g_ptr_array_index (self->futures, i);
-      if (last != NULL &&
-          dex_future_is_pending (last))
-        future = dex_ref (last);
-      else
-        {
-          DexChannel *channel = NULL;
-
-          channel = g_ptr_array_index (self->channels, i);
-          future  = dex_channel_receive (channel);
-        }
-
-      g_ptr_array_add (futures, g_steal_pointer (&future));
-    }
-
-  ret = dex_future_anyv (
-      (DexFuture *const *) futures->pdata,
-      futures->len);
-
-  g_clear_pointer (&self->futures, g_ptr_array_unref);
-  self->futures = g_steal_pointer (&futures);
-
-  return g_steal_pointer (&ret);
-}
-
-static void
-cancel_query (SaturnWindow *self)
-{
-  dex_clear (&self->query);
-
-  if (self->channels != NULL)
-    {
-      for (guint i = 0; i < self->channels->len; i++)
-        {
-          DexChannel *channel = NULL;
-
-          channel = g_ptr_array_index (self->channels, i);
-          dex_channel_close_receive (channel);
-        }
-    }
-  g_clear_pointer (&self->channels, g_ptr_array_unref);
-  g_clear_pointer (&self->futures, g_ptr_array_unref);
-  g_clear_object (&self->search_object);
 }
 
 static gint

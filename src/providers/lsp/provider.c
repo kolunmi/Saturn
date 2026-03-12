@@ -27,8 +27,8 @@
 
 #include "provider.h"
 #include "saturn-provider.h"
-
-static GMutex global_mutex = { 0 };
+#include "saturn-threadsafe-list-store.h"
+#include "util.h"
 
 struct _SaturnLspProvider
 {
@@ -60,10 +60,10 @@ enum
 };
 static GParamSpec *props[LAST_PROP] = { 0 };
 
-static void
-cl_object_to_gvalue (cl_object object,
-                     GType     hint,
-                     GValue   *value);
+static cl_object
+gobject_to_cl (gpointer object);
+static GObject *
+cl_to_gobject (cl_object object);
 
 static void
 ensure_lisp (SaturnLspProvider *self);
@@ -162,104 +162,31 @@ saturn_lsp_provider_init (SaturnLspProvider *self)
 {
 }
 
-static cl_object
-cl_g_object_unref (cl_object arg_object)
-{
-  GObject *object = NULL;
-
-  object = ecl_to_pointer (arg_object);
-
-  g_object_unref (object);
-  return ECL_T;
-}
-
-static cl_object
-cl_g_object_new (cl_object arg_class_name)
-{
-  const char *class_name = NULL;
-  GType       type       = G_TYPE_INVALID;
-  GObject    *object     = NULL;
-  cl_object   pointer    = NULL;
-
-  class_name = ecl_base_string_pointer_safe (si_coerce_to_base_string (arg_class_name));
-  type       = g_type_from_name (class_name);
-  if (!G_TYPE_IS_INSTANTIATABLE (type))
-    return ECL_NIL;
-
-  object = g_object_new (type, NULL);
-  if (g_type_is_a (type, G_TYPE_INITIALLY_UNOWNED))
-    g_object_ref_sink (object);
-
-  pointer = ecl_make_pointer (object);
-  ecl_set_finalizer_unprotected (
-      pointer,
-      ecl_read_from_cstring ("saturn:unsafe-g-object-unref"));
-
-  return pointer;
-}
-
-static cl_object
-cl_g_object_set (cl_object arg_object,
-                 cl_object arg_prop,
-                 cl_object arg_val)
-{
-  GObject    *object           = NULL;
-  const char *prop             = NULL;
-  g_autoptr (GTypeClass) class = NULL;
-  GParamSpec *pspec            = NULL;
-  GValue      value            = { 0 };
-
-  object = ecl_to_pointer (arg_object);
-  prop   = ecl_base_string_pointer_safe (si_coerce_to_base_string (arg_prop));
-
-  class = g_type_class_ref (G_OBJECT_TYPE (object));
-  pspec = g_object_class_find_property (G_OBJECT_CLASS (class), prop);
-  if (pspec == NULL)
-    {
-      g_critical ("Property %s does not exist on type %s!",
-                  prop, G_OBJECT_TYPE_NAME (object));
-      return ECL_NIL;
-    }
-
-  cl_object_to_gvalue (arg_val, pspec->value_type, &value);
-  g_object_set_property (object, prop, &value);
-  g_value_unset (&value);
-
-  return ECL_T;
-}
-
-static DexFuture *
+static void
 provider_init_global (SaturnProvider *provider)
 {
-  SaturnLspProvider *self         = SATURN_LSP_PROVIDER (provider);
-  g_autoptr (GMutexLocker) locker = NULL;
-  g_autoptr (GBytes) bytes        = NULL;
-  gconstpointer    data           = NULL;
-  gsize            size           = 0;
-  g_autofree char *wrapped        = NULL;
+  SaturnLspProvider *self  = SATURN_LSP_PROVIDER (provider);
+  g_autoptr (GBytes) bytes = NULL;
+  gconstpointer    data    = NULL;
+  gsize            size    = 0;
+  g_autofree char *wrapped = NULL;
 
-  g_mutex_locker_new (&global_mutex);
   cl_eval (ecl_read_from_cstring ("(defpackage :saturn "
-                                  "  (:use :cl) "
-                                  "  (:export #:unsafe-g-object-unref #:gobj-new #:gobj-set))"));
+                                  "  (:use :cl)) "));
   cl_eval (ecl_read_from_cstring ("(in-package :saturn)"));
 
-#define DEFUN(name, fun, args)                            \
-  G_STMT_START                                            \
-  {                                                       \
-    char buf[128];                                        \
-                                                          \
-    ecl_def_c_function (c_string_to_object (name),        \
-                        (cl_objectfn_fixed) (fun),        \
-                        (args));                          \
-    g_snprintf (buf, sizeof (buf), "(export '%s)", name); \
-    cl_eval (ecl_read_from_cstring (buf));                \
-  }                                                       \
+#define DEFUN(name, fun, args)                     \
+  G_STMT_START                                     \
+  {                                                \
+    g_autofree char *_tmp = NULL;                  \
+                                                   \
+    ecl_def_c_function (c_string_to_object (name), \
+                        (cl_objectfn_fixed) (fun), \
+                        (args));                   \
+    _tmp = g_strdup_printf ("(export '%s)", name); \
+    cl_eval (ecl_read_from_cstring (_tmp));        \
+  }                                                \
   G_STMT_END
-
-  DEFUN ("unsafe-g-object-unref", cl_g_object_unref, 1);
-  DEFUN ("gobj-new", cl_g_object_new, 1);
-  DEFUN ("gobj-set", cl_g_object_set, 3);
 
 #undef DEFUN
 
@@ -276,67 +203,129 @@ provider_init_global (SaturnProvider *provider)
   cl_eval (ecl_read_from_cstring ("(in-package \"CL-USER\")"));
 
   ensure_lisp (self);
-  return dex_future_new_true ();
 }
 
-static DexChannel *
+static void
 provider_query (SaturnProvider *provider,
-                GObject        *object)
+                GObject        *object,
+                GWeakRef       *store_wr)
 {
   SaturnLspProvider *self        = SATURN_LSP_PROVIDER (provider);
   g_autoptr (DexChannel) channel = NULL;
+  g_autofree char *fun           = NULL;
+  cl_object        result        = NULL;
 
-  ensure_lisp (self);
-
-  channel = dex_channel_new (32);
-  if (self->loaded &&
-      GTK_IS_STRING_OBJECT (object))
+  fun    = g_strdup_printf ("%s:query", self->name);
+  result = cl_eval (cl_list (
+      2,
+      ecl_read_from_cstring (fun),
+      gobject_to_cl (object)));
+  if (ecl_to_bool (result))
     {
-      const char      *string = NULL;
-      g_autofree char *fun    = NULL;
+      GObject *gobject                            = NULL;
+      g_autoptr (SaturnThreadsafeListStore) store = NULL;
 
-      string = gtk_string_object_get_string (GTK_STRING_OBJECT (object));
-      fun    = g_strdup_printf ("%s:query", self->name);
-      cl_eval (cl_list (
-          2,
-          ecl_read_from_cstring (fun),
-          ecl_make_constant_base_string (string, -1)));
+      gobject = cl_to_gobject (result);
+      g_object_set_qdata_full (
+          G_OBJECT (gobject),
+          SATURN_PROVIDER_QUARK,
+          g_object_ref (self),
+          g_object_unref);
+
+      store = g_weak_ref_get (store_wr);
+      if (store != NULL)
+        saturn_threadsafe_list_store_insert_sorted (store, gobject);
     }
-  else
-    dex_channel_close_send (channel);
 
-  return g_steal_pointer (&channel);
+  saturn_weak_release (store_wr);
 }
 
 static gsize
-provider_score (SaturnProvider *self,
+provider_score (SaturnProvider *provider,
                 gpointer        item,
                 GObject        *query)
 {
-  return 0;
+  SaturnLspProvider *self   = SATURN_LSP_PROVIDER (provider);
+  g_autofree char   *fun    = NULL;
+  cl_object          result = NULL;
+  gsize              score  = 0;
+
+  fun    = g_strdup_printf ("%s:score", self->name);
+  result = cl_eval (cl_list (
+      3,
+      ecl_read_from_cstring (fun),
+      gobject_to_cl (item),
+      gobject_to_cl (query)));
+
+  score = ecl_to_ulong (result);
+  g_object_set_qdata (
+      G_OBJECT (item),
+      SATURN_PROVIDER_SCORE_QUARK,
+      GSIZE_TO_POINTER (score));
+
+  return score;
 }
 
 static gboolean
-provider_select (SaturnProvider *self,
+provider_select (SaturnProvider *provider,
                  gpointer        item,
                  GObject        *query,
                  GError        **error)
 {
-  return FALSE;
+  SaturnLspProvider *self   = SATURN_LSP_PROVIDER (provider);
+  g_autofree char   *fun    = NULL;
+  cl_object          result = NULL;
+  gboolean           ret    = FALSE;
+
+  fun    = g_strdup_printf ("%s:select", self->name);
+  result = cl_eval (cl_list (
+      3,
+      ecl_read_from_cstring (fun),
+      gobject_to_cl (item),
+      gobject_to_cl (query)));
+  ret    = ecl_to_bool (result);
+
+  return ret;
 }
 
 static void
-provider_bind_list_item (SaturnProvider *self,
+provider_bind_list_item (SaturnProvider *provider,
                          gpointer        object,
                          AdwBin         *list_item)
 {
+  SaturnLspProvider *self   = SATURN_LSP_PROVIDER (provider);
+  g_autofree char   *fun    = NULL;
+  cl_object          result = NULL;
+
+  fun    = g_strdup_printf ("%s:bind-list-item", self->name);
+  result = cl_eval (cl_list (
+      2,
+      ecl_read_from_cstring (fun),
+      gobject_to_cl (object)));
+  if (ecl_to_bool (result))
+    adw_bin_set_child (
+        list_item,
+        GTK_WIDGET (cl_to_gobject (result)));
 }
 
 static void
-provider_bind_preview (SaturnProvider *self,
+provider_bind_preview (SaturnProvider *provider,
                        gpointer        object,
                        AdwBin         *preview)
 {
+  SaturnLspProvider *self   = SATURN_LSP_PROVIDER (provider);
+  g_autofree char   *fun    = NULL;
+  cl_object          result = NULL;
+
+  fun    = g_strdup_printf ("%s:bind-preview", self->name);
+  result = cl_eval (cl_list (
+      2,
+      ecl_read_from_cstring (fun),
+      gobject_to_cl (object)));
+  if (ecl_to_bool (result))
+    adw_bin_set_child (
+        preview,
+        GTK_WIDGET (cl_to_gobject (result)));
 }
 
 static void
@@ -350,98 +339,23 @@ provider_iface_init (SaturnProviderInterface *iface)
   iface->bind_preview   = provider_bind_preview;
 }
 
-static void
-cl_object_to_gvalue (cl_object object,
-                     GType     hint,
-                     GValue   *value)
+static cl_object
+gobject_to_cl (gpointer object)
 {
-  if (ECL_SYMBOLP (object) &&
-      g_type_is_a (hint, G_TYPE_ENUM))
-    {
-      const char *symbol_name      = NULL;
-      g_autoptr (GTypeClass) class = NULL;
-      GEnumValue *enum_value       = NULL;
-
-      symbol_name = ecl_base_string_pointer_safe (
-          si_coerce_to_base_string (
-              ecl_symbol_name (object)));
-
-      class      = g_type_class_ref (hint);
-      enum_value = g_enum_get_value_by_nick (G_ENUM_CLASS (class), symbol_name);
-
-      if (enum_value != NULL)
-        g_value_set_enum (
-            g_value_init (value, hint),
-            enum_value->value);
-      else
-        g_value_set_boolean (
-            g_value_init (value, G_TYPE_BOOLEAN),
-            ecl_to_bool (object));
-    }
-  else if (ECL_FOREIGN_DATA_P (object))
-    g_value_set_object (
-        g_value_init (value, G_TYPE_OBJECT),
-        ecl_to_pointer (object));
-  else if (ECL_STRINGP (object))
-    g_value_set_string (
-        g_value_init (value, G_TYPE_STRING),
-        ecl_base_string_pointer_safe (si_coerce_to_base_string (object)));
-  else if (ECL_SINGLE_FLOAT_P (object))
-    g_value_set_double (
-        g_value_init (value, G_TYPE_DOUBLE),
-        ecl_to_float (object));
-  else if (ECL_DOUBLE_FLOAT_P (object))
-    g_value_set_double (
-        g_value_init (value, G_TYPE_DOUBLE),
-        ecl_to_double (object));
-  else if (ECL_LONG_FLOAT_P (object))
-    g_value_set_double (
-        g_value_init (value, G_TYPE_DOUBLE),
-        ecl_to_long_double (object));
-  else if (ECL_FIXNUMP (object))
-    {
-      switch (hint)
-        {
-        case G_TYPE_INT:
-          g_value_set_int (
-              g_value_init (value, G_TYPE_INT),
-              ecl_to_fix (object));
-          break;
-        case G_TYPE_INT64:
-          g_value_set_int64 (
-              g_value_init (value, G_TYPE_INT64),
-              ecl_to_fix (object));
-          break;
-        case G_TYPE_UINT:
-          g_value_set_uint (
-              g_value_init (value, G_TYPE_UINT),
-              ecl_to_fix (object));
-          break;
-        case G_TYPE_UINT64:
-          g_value_set_uint64 (
-              g_value_init (value, G_TYPE_UINT64),
-              ecl_to_fix (object));
-          break;
-        default:
-          g_value_set_boolean (
-              g_value_init (value, G_TYPE_BOOLEAN),
-              ecl_to_bool (object));
-          break;
-        }
-    }
-  else
-    g_value_set_boolean (
-        g_value_init (value, G_TYPE_BOOLEAN),
-        ecl_to_bool (object));
+  return cl_eval (cl_list (
+      2,
+      ecl_read_from_cstring ("saturn:make-object-for-lisp"),
+      ecl_make_pointer (g_object_ref (object))));
 }
 
-// static void
-// hold_cl_gobject (gpointer object)
-// {
-//   cl_eval (cl_list (2,
-//                     ecl_read_from_cstring ("saturn:hold"),
-//                     object));
-// }
+static GObject *
+cl_to_gobject (cl_object object)
+{
+  return ecl_to_pointer (cl_eval (cl_list (
+      2,
+      ecl_read_from_cstring ("saturn:make-object-for-c"),
+      object)));
+}
 
 static void
 ensure_lisp (SaturnLspProvider *self)
@@ -487,8 +401,8 @@ ensure_lisp (SaturnLspProvider *self)
     }
 
   eval_before = g_strdup_printf ("(progn (defpackage :%s "
-                                 "  (:use :cl :saturn) "
-                                 "  (:export :query)) "
+                                 "  (:use :cl) "
+                                 "  (:export :query :score :select :bind-list-item :bind-preview)) "
                                  "(in-package :%s))",
                                  self->name, self->name);
   cl_eval (ecl_read_from_cstring (eval_before));

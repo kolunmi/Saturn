@@ -21,7 +21,6 @@
 #pragma once
 
 #include <adwaita.h>
-#include <libdex.h>
 
 G_BEGIN_DECLS
 
@@ -40,12 +39,13 @@ struct _SaturnProviderInterface
 {
   GTypeInterface parent_iface;
 
-  DexFuture *(*init_global) (SaturnProvider *self);
-  DexFuture *(*deinit_global) (SaturnProvider *self);
+  void (*init_global) (SaturnProvider *self);
+  void (*deinit_global) (SaturnProvider *self);
 
   /* Provider must close sending side of channel when done */
-  DexChannel *(*query) (SaturnProvider *self,
-                        GObject        *object);
+  void (*query) (SaturnProvider *self,
+                 GObject        *object,
+                 GWeakRef       *store);
   gsize (*score) (SaturnProvider *self,
                   gpointer        item,
                   GObject        *query);
@@ -82,12 +82,16 @@ struct _SaturnProviderInterface
                           AdwBin         *preview);
 };
 
-DexFuture *saturn_provider_init_global (SaturnProvider *self);
+void
+saturn_provider_init_global (SaturnProvider *self);
 
-DexFuture *saturn_provider_deinit_global (SaturnProvider *self);
+void
+saturn_provider_deinit_global (SaturnProvider *self);
 
-DexChannel *saturn_provider_query (SaturnProvider *self,
-                                   GObject        *object);
+void
+saturn_provider_query (SaturnProvider *self,
+                       GObject        *object,
+                       GWeakRef       *store);
 
 gsize saturn_provider_score (SaturnProvider *self,
                              gpointer        item,
@@ -99,30 +103,38 @@ saturn_provider_select (SaturnProvider *self,
                         GObject        *query,
                         GError        **error);
 
-void saturn_provider_setup_list_item (SaturnProvider *self,
-                                      gpointer        object,
-                                      AdwBin         *list_item);
-void saturn_provider_teardown_list_item (SaturnProvider *self,
-                                         gpointer        object,
-                                         AdwBin         *list_item);
-void saturn_provider_bind_list_item (SaturnProvider *self,
-                                     gpointer        object,
-                                     AdwBin         *list_item);
-void saturn_provider_unbind_list_item (SaturnProvider *self,
-                                       gpointer        object,
-                                       AdwBin         *list_item);
-
-void saturn_provider_setup_preview (SaturnProvider *self,
+void
+saturn_provider_setup_list_item (SaturnProvider *self,
+                                 gpointer        object,
+                                 AdwBin         *list_item);
+void
+saturn_provider_teardown_list_item (SaturnProvider *self,
                                     gpointer        object,
-                                    AdwBin         *preview);
-void saturn_provider_teardown_preview (SaturnProvider *self,
-                                       gpointer        object,
-                                       AdwBin         *preview);
-void saturn_provider_bind_preview (SaturnProvider *self,
-                                   gpointer        object,
-                                   AdwBin         *preview);
-void saturn_provider_unbind_preview (SaturnProvider *self,
-                                     gpointer        object,
-                                     AdwBin         *preview);
+                                    AdwBin         *list_item);
+void
+saturn_provider_bind_list_item (SaturnProvider *self,
+                                gpointer        object,
+                                AdwBin         *list_item);
+void
+saturn_provider_unbind_list_item (SaturnProvider *self,
+                                  gpointer        object,
+                                  AdwBin         *list_item);
+
+void
+saturn_provider_setup_preview (SaturnProvider *self,
+                               gpointer        object,
+                               AdwBin         *preview);
+void
+saturn_provider_teardown_preview (SaturnProvider *self,
+                                  gpointer        object,
+                                  AdwBin         *preview);
+void
+saturn_provider_bind_preview (SaturnProvider *self,
+                              gpointer        object,
+                              AdwBin         *preview);
+void
+saturn_provider_unbind_preview (SaturnProvider *self,
+                                gpointer        object,
+                                AdwBin         *preview);
 
 G_END_DECLS

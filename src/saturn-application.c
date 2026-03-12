@@ -34,7 +34,6 @@ struct _SaturnApplication
   AdwApplication parent_instance;
 
   GListStore *providers;
-  GPtrArray  *inits;
 };
 
 G_DEFINE_FINAL_TYPE (SaturnApplication, saturn_application, ADW_TYPE_APPLICATION)
@@ -163,18 +162,17 @@ ensure_providers (SaturnApplication *self)
   APPEND_PROVIDER (SATURN_TYPE_FILE_SYSTEM_PROVIDER);
   APPEND_PROVIDER (SATURN_TYPE_APP_INFO_PROVIDER);
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
-                   "name", "calc",
-                   "script-uri", "resource:///io/github/kolunmi/Saturn/calc.lsp");
+                   "name", "color",
+                   "script-uri", "resource:///io/github/kolunmi/Saturn/color.lsp");
 
 #undef APPEND_PROVIDER
 
-  self->inits = g_ptr_array_new_with_free_func (dex_unref);
   n_providers = g_list_model_get_n_items (G_LIST_MODEL (self->providers));
   for (guint i = 0; i < n_providers; i++)
     {
       g_autoptr (SaturnProvider) provider = NULL;
 
       provider = g_list_model_get_item (G_LIST_MODEL (self->providers), i);
-      g_ptr_array_add (self->inits, saturn_provider_init_global (provider));
+      saturn_provider_init_global (provider);
     }
 }
