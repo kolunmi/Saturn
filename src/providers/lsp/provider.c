@@ -304,7 +304,7 @@ provider_bind_list_item (SaturnProvider *provider,
   if (ecl_to_bool (result))
     adw_bin_set_child (
         list_item,
-        GTK_WIDGET (cl_to_gobject (result)));
+        g_object_ref (GTK_WIDGET (cl_to_gobject (result))));
 }
 
 static void
@@ -324,7 +324,7 @@ provider_bind_preview (SaturnProvider *provider,
   if (ecl_to_bool (result))
     adw_bin_set_child (
         preview,
-        GTK_WIDGET (cl_to_gobject (result)));
+        g_object_ref (GTK_WIDGET (cl_to_gobject (result))));
 }
 
 static void
