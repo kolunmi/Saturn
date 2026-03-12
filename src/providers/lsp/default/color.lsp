@@ -94,18 +94,21 @@
   nil)
 
 (defun bind-list-item (item)
-  (let* ((box (make-instance 'gtk:box
-                             :orientation :horizontal
-                             :spacing 10))
-         (str "color")
-         (label (make-instance 'gtk:label
-                               :label str
-                               :hexpand t))
-         (color (make-instance 'color-widget
-                               :result item
-                               :width-request 50)))
-    (gtk:box-append box label)
-    (gtk:box-append box color)
+  (let* ((label
+           (saturn:make-widget 'gtk:label
+               (:props (:label "color"
+                        :hexpand t))))
+         (color
+           (saturn:make-widget 'color-widget
+               (:props (:result item
+                        :width-request 50))))
+         (box
+           (saturn:make-widget 'gtk:box
+               (:props (:orientation :horizontal
+                        :spacing 10))
+               (lambda (x)
+                 (gtk:box-append x label)
+                 (gtk:box-append x color)))))
     box))
 
 (defun bind-preview (item)
