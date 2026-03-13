@@ -38,7 +38,7 @@
       "result" "SaturnColorResult" t t)))
 
 (gobject:define-vtable ("SaturnColorWidget" color-widget)
-  (:skip parent-instance (:struct gtk::widget-class))
+  (:skip parent-instance (:struct gobject::object-class))
   ;; Methods for the GtkWidget class
   (:skip show :pointer)
   (:skip hide :pointer)
@@ -63,10 +63,9 @@
   (:skip compute-expand :pointer)
   (:skip css-changed :pointer)
   (:skip system-settings-changed :pointer)
-  ;; Install new virtual snapshot function
+  (:skip contains :pointer)
   (snapshot (:void (self (g:object color-widget))
-                   (snapshot (g:object gtk:snapshot))))
-  (:skip contains :pointer))
+                   (snapshot (g:object gtk:snapshot)))))
 
 (defmethod color-widget-snapshot-impl ((self color-widget) (snapshot gtk:snapshot))
   (let ((result (color-widget-result self)))
