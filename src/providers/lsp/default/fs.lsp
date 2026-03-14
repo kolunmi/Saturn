@@ -88,7 +88,7 @@
            (saturn:make-widget
             'gtk:label
             (:props (:label (uiop:unix-namestring
-                             (uiop:pathname-parent-directory-pathname path))
+                             (uiop:pathname-directory-pathname path))
                      :xalign 0.0
                      :ellipsize :start
                      :hexpand t)
