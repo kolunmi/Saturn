@@ -22,19 +22,25 @@
 
   (defun gather-files (path)
     (labels ((gather (path)
-               (let ((files (uiop:directory-files path)))
-                 (bordeaux-threads:with-lock-held (*work-lock*)
-                   (loop for f in files
-                         unless (search "." (pathname-name f) :end2 1)
-                           do (vector-push-extend f *files-array*))))
-               (let ((dirs (uiop:subdirectories path)))
-                 (loop for d in dirs
-                       do (gather d)))))
+               (flet ((is-hidden-file (x)
+                        (let ((name (or (pathname-name x)
+                                        (car (last (pathname-directory x))))))
+                          (when (> (length name) 1)
+                            (search "." name :end2 1)))))
+                 (let ((files (uiop:directory-files path)))
+                   (bordeaux-threads:with-lock-held (*work-lock*)
+                     (loop for f in files
+                           unless (is-hidden-file f)
+                             do (vector-push-extend f *files-array*))))
+                 (let ((dirs (uiop:subdirectories path)))
+                   (loop for d in dirs
+                         unless (is-hidden-file d)
+                           do (gather d))))))
       (gather path)))
 
   (bordeaux-threads:make-thread
    (lambda ()
-     (gather-files "~/")))
+     (gather-files #P"~/")))
 
   (gobject:define-gobject-subclass
       "SaturnFsResult"
@@ -55,8 +61,7 @@
          (bordeaux-threads:with-lock-held (*work-lock*)
            (block root
              (loop for path across *files-array*
-                   for name = (pathname-name path)
-                   when (search str name)
+                   when (search str (file-namestring path))
                      do (let ((result (make-instance 'fs-result)))
                           ;; gobject properties weirdly don't work
                           (setf (g:object-data result "path") path)
@@ -65,9 +70,10 @@
 
   )
 
+
 (defun score (provider item query)
   (let ((str (gtk:string-object-string query))
-        (name (pathname-name (g:object-data item "path"))))
+        (name (file-namestring (g:object-data item "path"))))
     (round (/ 10000.0
               (- (/ (length name) (length str))
                  (/ (search str name) (length name)))))))
@@ -77,15 +83,33 @@
   nil)
 
 (defun bind-list-item (provider item)
-  (let* ((label
-           (saturn:make-widget 'gtk:label
-               (:props (:label (uiop:unix-namestring (g:object-data item "path"))
-                        :xalign 0.0
-                        :ellipsize :start
-                        :hexpand t
-                        :margin-end 50)
-                :styles ("monospace")))))
-    label))
+  (let* ((path (g:object-data item "path"))
+         (start-label
+           (saturn:make-widget
+            'gtk:label
+            (:props (:label (uiop:unix-namestring
+                             (uiop:pathname-parent-directory-pathname path))
+                     :xalign 0.0
+                     :ellipsize :start
+                     :hexpand t)
+             :styles ("subtitle"))))
+         (end-label
+           (saturn:make-widget
+            'gtk:label
+            (:props (:label (file-namestring path)
+                     :xalign 1.0
+                     :ellipsize :start
+                     :margin-end 25)
+             :styles ("title-4"))))
+         (box
+           (saturn:make-widget
+            'gtk:box
+            (:props (:orientation :horizontal
+                     :spacing 25))
+            (lambda (x)
+              (gtk:box-append x start-label)
+              (gtk:box-append x end-label)))))
+    box))
 
 (defun bind-preview (provider item)
   (let* ((label
