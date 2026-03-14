@@ -119,6 +119,7 @@ template $SaturnWindow: Adw.ApplicationWindow {
           tab-behavior: item;
 
           model: SingleSelection selection {
+            items-changed => $selection_changed_cb(template);
             notify::selected => $selected_changed_cb(template);
             notify::selected-item => $selected_item_changed_cb(template);
           };

@@ -175,6 +175,20 @@ debounce_timeout (SaturnWindow *self)
 }
 
 static void
+selection_changed_cb (SaturnWindow *self,
+                      guint         position,
+                      guint         removed,
+                      guint         added,
+                      GListModel   *model)
+{
+  guint n_items = 0;
+
+  n_items = g_list_model_get_n_items (model);
+  if (n_items > 0 && !self->explicit_selection)
+    gtk_list_view_scroll_to (self->list_view, 0, GTK_LIST_SCROLL_NONE, NULL);
+}
+
+static void
 selected_changed_cb (SaturnWindow       *self,
                      GParamSpec         *pspec,
                      GtkSingleSelection *selection)
@@ -191,7 +205,11 @@ selected_item_changed_cb (SaturnWindow       *self,
                           GParamSpec         *pspec,
                           GtkSingleSelection *selection)
 {
-  self->explicit_selection = TRUE;
+  guint n_items = 0;
+
+  n_items = g_list_model_get_n_items (G_LIST_MODEL (selection));
+  if (n_items > 1)
+    self->explicit_selection = TRUE;
 }
 
 static void
@@ -352,6 +370,7 @@ saturn_window_class_init (SaturnWindowClass *klass)
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, preview_bin);
   gtk_widget_class_bind_template_callback (widget_class, text_changed_cb);
   gtk_widget_class_bind_template_callback (widget_class, text_activated_cb);
+  gtk_widget_class_bind_template_callback (widget_class, selection_changed_cb);
   gtk_widget_class_bind_template_callback (widget_class, selected_changed_cb);
   gtk_widget_class_bind_template_callback (widget_class, selected_item_changed_cb);
   gtk_widget_class_bind_template_callback (widget_class, list_view_activated_cb);
