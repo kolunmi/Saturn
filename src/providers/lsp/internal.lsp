@@ -1,9 +1,9 @@
 (defun make-object-for-lisp (ptr)
-  (let ((obj (make-instance (g:symbol-for-gtype
-                             (g:gtype-name
-                              (g:type-from-instance ptr)))
-                            :pointer ptr)))
-    obj))
+  (make-instance (let ((gtype (g:symbol-for-gtype
+                               (g:gtype-name
+                                (g:type-from-instance ptr)))))
+                   (if gtype gtype 'g:object))
+                 :pointer ptr))
 (export 'make-object-for-lisp)
 
 (defun make-object-for-c (obj)

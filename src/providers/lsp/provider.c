@@ -62,7 +62,7 @@ static GParamSpec *props[LAST_PROP] = { 0 };
 
 static cl_object
 gobject_to_cl (gpointer object);
-static GObject *
+static gpointer
 cl_to_gobject (cl_object object);
 
 static void
@@ -162,6 +162,28 @@ saturn_lsp_provider_init (SaturnLspProvider *self)
 {
 }
 
+static cl_object
+cl_submit_result (cl_object cl_result,
+                  cl_object cl_store,
+                  cl_object cl_provider)
+{
+  GObject                   *result   = NULL;
+  SaturnThreadsafeListStore *store    = NULL;
+  SaturnLspProvider         *provider = NULL;
+
+  result   = cl_to_gobject (cl_result);
+  store    = cl_to_gobject (cl_store);
+  provider = cl_to_gobject (cl_provider);
+
+  g_object_set_qdata_full (
+      G_OBJECT (result),
+      SATURN_PROVIDER_QUARK,
+      g_object_ref (provider),
+      g_object_unref);
+
+  return ecl_make_bool (saturn_threadsafe_list_store_append (store, result));
+}
+
 static void
 provider_init_global (SaturnProvider *provider)
 {
@@ -188,6 +210,8 @@ provider_init_global (SaturnProvider *provider)
   }                                                \
   G_STMT_END
 
+  DEFUN ("submit-result", cl_submit_result, 3);
+
 #undef DEFUN
 
   bytes = g_resources_lookup_data (
@@ -206,37 +230,20 @@ provider_init_global (SaturnProvider *provider)
 }
 
 static void
-provider_query (SaturnProvider *provider,
-                GObject        *object,
-                GWeakRef       *store_wr)
+provider_query (SaturnProvider            *provider,
+                GObject                   *object,
+                SaturnThreadsafeListStore *store)
 {
-  SaturnLspProvider *self   = SATURN_LSP_PROVIDER (provider);
-  g_autofree char   *fun    = NULL;
-  cl_object          result = NULL;
+  SaturnLspProvider *self = SATURN_LSP_PROVIDER (provider);
+  g_autofree char   *fun  = NULL;
 
-  fun    = g_strdup_printf ("%s:query", self->name);
-  result = cl_eval (cl_list (
-      2,
+  fun = g_strdup_printf ("%s:query", self->name);
+  cl_eval (cl_list (
+      4,
       ecl_read_from_cstring (fun),
-      gobject_to_cl (object)));
-  if (ecl_to_bool (result))
-    {
-      GObject *gobject                            = NULL;
-      g_autoptr (SaturnThreadsafeListStore) store = NULL;
-
-      gobject = cl_to_gobject (result);
-      g_object_set_qdata_full (
-          G_OBJECT (gobject),
-          SATURN_PROVIDER_QUARK,
-          g_object_ref (self),
-          g_object_unref);
-
-      store = g_weak_ref_get (store_wr);
-      if (store != NULL)
-        saturn_threadsafe_list_store_insert_sorted (store, gobject);
-    }
-
-  saturn_weak_release (store_wr);
+      gobject_to_cl (provider),
+      gobject_to_cl (object),
+      gobject_to_cl (store)));
 }
 
 static gsize
@@ -251,8 +258,9 @@ provider_score (SaturnProvider *provider,
 
   fun    = g_strdup_printf ("%s:score", self->name);
   result = cl_eval (cl_list (
-      3,
+      4,
       ecl_read_from_cstring (fun),
+      gobject_to_cl (provider),
       gobject_to_cl (item),
       gobject_to_cl (query)));
 
@@ -278,8 +286,9 @@ provider_select (SaturnProvider *provider,
 
   fun    = g_strdup_printf ("%s:select", self->name);
   result = cl_eval (cl_list (
-      3,
+      4,
       ecl_read_from_cstring (fun),
+      gobject_to_cl (provider),
       gobject_to_cl (item),
       gobject_to_cl (query)));
   ret    = ecl_to_bool (result);
@@ -298,13 +307,14 @@ provider_bind_list_item (SaturnProvider *provider,
 
   fun    = g_strdup_printf ("%s:bind-list-item", self->name);
   result = cl_eval (cl_list (
-      2,
+      3,
       ecl_read_from_cstring (fun),
+      gobject_to_cl (provider),
       gobject_to_cl (object)));
   if (ecl_to_bool (result))
     adw_bin_set_child (
         list_item,
-        g_object_ref (GTK_WIDGET (cl_to_gobject (result))));
+        GTK_WIDGET (cl_to_gobject (result)));
 }
 
 static void
@@ -318,13 +328,14 @@ provider_bind_preview (SaturnProvider *provider,
 
   fun    = g_strdup_printf ("%s:bind-preview", self->name);
   result = cl_eval (cl_list (
-      2,
+      3,
       ecl_read_from_cstring (fun),
+      gobject_to_cl (provider),
       gobject_to_cl (object)));
   if (ecl_to_bool (result))
     adw_bin_set_child (
         preview,
-        g_object_ref (GTK_WIDGET (cl_to_gobject (result))));
+        GTK_WIDGET (cl_to_gobject (result)));
 }
 
 static void
@@ -347,7 +358,7 @@ gobject_to_cl (gpointer object)
       ecl_make_pointer (g_object_ref (object))));
 }
 
-static GObject *
+static gpointer
 cl_to_gobject (cl_object object)
 {
   return ecl_to_pointer (cl_eval (cl_list (
@@ -365,7 +376,6 @@ ensure_lisp (SaturnLspProvider *self)
   gsize            length           = 0;
   g_autofree char *contents_wrapped = NULL;
   g_autofree char *eval_before      = NULL;
-  g_autofree char *eval_after       = NULL;
 
   if (self->loaded)
     return;
@@ -409,10 +419,7 @@ ensure_lisp (SaturnLspProvider *self)
   contents_wrapped = g_strdup_printf ("(progn %s)", contents);
   cl_eval (ecl_read_from_cstring (contents_wrapped));
 
-  /* Return to CL-USER package */
-  eval_after = g_strdup_printf ("(progn (in-package \"CL-USER\") (use-package :%s))",
-                                self->name);
-  cl_eval (ecl_read_from_cstring (eval_after));
+  cl_eval (ecl_read_from_cstring ("(in-package \"CL-USER\")"));
 
   self->loaded = TRUE;
 }

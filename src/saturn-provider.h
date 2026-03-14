@@ -22,6 +22,8 @@
 
 #include <adwaita.h>
 
+#include "saturn-threadsafe-list-store.h"
+
 G_BEGIN_DECLS
 
 #define SATURN_PROVIDER_QUARK (saturn_provider_quark ())
@@ -43,9 +45,9 @@ struct _SaturnProviderInterface
   void (*deinit_global) (SaturnProvider *self);
 
   /* Provider must close sending side of channel when done */
-  void (*query) (SaturnProvider *self,
-                 GObject        *object,
-                 GWeakRef       *store);
+  void (*query) (SaturnProvider            *self,
+                 GObject                   *object,
+                 SaturnThreadsafeListStore *store);
   gsize (*score) (SaturnProvider *self,
                   gpointer        item,
                   GObject        *query);
@@ -89,13 +91,14 @@ void
 saturn_provider_deinit_global (SaturnProvider *self);
 
 void
-saturn_provider_query (SaturnProvider *self,
-                       GObject        *object,
-                       GWeakRef       *store);
+saturn_provider_query (SaturnProvider            *self,
+                       GObject                   *object,
+                       SaturnThreadsafeListStore *store);
 
-gsize saturn_provider_score (SaturnProvider *self,
-                             gpointer        item,
-                             GObject        *query);
+gsize
+saturn_provider_score (SaturnProvider *self,
+                       gpointer        item,
+                       GObject        *query);
 
 gboolean
 saturn_provider_select (SaturnProvider *self,

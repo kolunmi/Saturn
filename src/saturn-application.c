@@ -156,8 +156,11 @@ ensure_providers (SaturnApplication *self)
   G_STMT_END
 
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
-                   "name", "color",
-                   "script-uri", "resource:///io/github/kolunmi/Saturn/color.lsp");
+                   "name", "fs",
+                   "script-uri", "resource:///io/github/kolunmi/Saturn/fs.lsp");
+  /* APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER, */
+  /*                  "name", "color", */
+  /*                  "script-uri", "resource:///io/github/kolunmi/Saturn/color.lsp"); */
 
 #undef APPEND_PROVIDER
 

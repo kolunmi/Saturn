@@ -26,14 +26,16 @@ struct _SaturnThreadsafeListStore
   GObject parent_instance;
 
   GCompareDataFunc sort_func;
-  gpointer         sort_data;
-  GDestroyNotify   sort_destroy_data;
+  gpointer         user_data;
+  GDestroyNotify   destroy_user_data;
 
-  GMutex      api_mutex;
+  GMutex buildup_mutex;
+
   GListStore *store;
-  guint       update_timeout;
-  GMutex      buildup_mutex;
-  GPtrArray  *buildup;
+  gboolean    cancelled;
+
+  GPtrArray *buildup;
+  guint      update_timeout;
 };
 
 static void list_model_iface_init (GListModelInterface *iface);
@@ -72,9 +74,6 @@ store_changed (SaturnThreadsafeListStore *self,
                GListModel                *model);
 
 static gboolean
-idle_cb (IdleModifyData *data);
-
-static gboolean
 idle_update_cb (GWeakRef *wr);
 
 static void
@@ -82,15 +81,14 @@ saturn_threadsafe_list_store_dispose (GObject *object)
 {
   SaturnThreadsafeListStore *self = SATURN_THREADSAFE_LIST_STORE (object);
 
-  g_mutex_clear (&self->api_mutex);
   g_mutex_clear (&self->buildup_mutex);
   g_clear_pointer (&self->buildup, g_ptr_array_unref);
   g_clear_object (&self->store);
   g_clear_handle_id (&self->update_timeout, g_source_remove);
 
-  if (self->sort_data != NULL &&
-      self->sort_destroy_data != NULL)
-    self->sort_destroy_data (self->sort_data);
+  if (self->user_data != NULL &&
+      self->destroy_user_data != NULL)
+    self->destroy_user_data (self->user_data);
 
   G_OBJECT_CLASS (saturn_threadsafe_list_store_parent_class)->dispose (object);
 }
@@ -153,7 +151,6 @@ saturn_threadsafe_list_store_class_init (SaturnThreadsafeListStoreClass *klass)
 static void
 saturn_threadsafe_list_store_init (SaturnThreadsafeListStore *self)
 {
-  g_mutex_init (&self->api_mutex);
   g_mutex_init (&self->buildup_mutex);
   self->buildup = g_ptr_array_new_with_free_func (g_object_unref);
 
@@ -166,7 +163,7 @@ saturn_threadsafe_list_store_init (SaturnThreadsafeListStore *self)
 
   self->update_timeout = g_timeout_add_full (
       G_PRIORITY_DEFAULT_IDLE,
-      100,
+      10,
       (GSourceFunc) idle_update_cb,
       saturn_track_weak (self),
       saturn_weak_release);
@@ -181,35 +178,20 @@ list_model_get_item_type (GListModel *list)
 static guint
 list_model_get_n_items (GListModel *list)
 {
-  SaturnThreadsafeListStore *self    = SATURN_THREADSAFE_LIST_STORE (list);
-  gboolean                   locked  = FALSE;
-  guint                      n_items = 0;
+  SaturnThreadsafeListStore *self = SATURN_THREADSAFE_LIST_STORE (list);
+  g_autoptr (GMutexLocker) locker = NULL;
 
-  /* It's fine to get this data if we are already locked, we just want to
-     prevent the underlying store from being mutated while retrieving the
-     data */
-  locked  = g_mutex_trylock (&self->api_mutex);
-  n_items = g_list_model_get_n_items (G_LIST_MODEL (self->store));
-  if (locked)
-    g_mutex_unlock (&self->api_mutex);
-
-  return n_items;
+  return g_list_model_get_n_items (G_LIST_MODEL (self->store));
 }
 
 static gpointer
 list_model_get_item (GListModel *list,
                      guint       position)
 {
-  SaturnThreadsafeListStore *self   = SATURN_THREADSAFE_LIST_STORE (list);
-  gboolean                   locked = FALSE;
-  g_autoptr (GObject) item          = NULL;
+  SaturnThreadsafeListStore *self = SATURN_THREADSAFE_LIST_STORE (list);
+  g_autoptr (GMutexLocker) locker = NULL;
 
-  locked = g_mutex_trylock (&self->api_mutex);
-  item   = g_list_model_get_item (G_LIST_MODEL (self->store), position);
-  if (locked)
-    g_mutex_unlock (&self->api_mutex);
-
-  return g_steal_pointer (&item);
+  return g_list_model_get_item (G_LIST_MODEL (self->store), position);
 }
 
 static void
@@ -221,49 +203,48 @@ list_model_iface_init (GListModelInterface *iface)
 }
 
 SaturnThreadsafeListStore *
-saturn_threadsafe_list_store_new (GCompareDataFunc sort_cmp,
-                                  gpointer         sort_data,
-                                  GDestroyNotify   sort_destroy_data)
+saturn_threadsafe_list_store_new (GCompareDataFunc sort_func,
+                                  gpointer         user_data,
+                                  GDestroyNotify   destroy_user_data)
 {
   SaturnThreadsafeListStore *object = NULL;
 
   object                    = g_object_new (SATURN_TYPE_THREADSAFE_LIST_STORE, NULL);
-  object->sort_func         = sort_cmp;
-  object->sort_data         = sort_data;
-  object->sort_destroy_data = sort_destroy_data;
+  object->sort_func         = sort_func;
+  object->user_data         = user_data;
+  object->destroy_user_data = destroy_user_data;
 
   return object;
 }
 
+gboolean
+saturn_threadsafe_list_store_append (SaturnThreadsafeListStore *self,
+                                     gpointer                   item)
+{
+  g_autoptr (GMutexLocker) locker = NULL;
+
+  g_return_val_if_fail (SATURN_THREADSAFE_LIST_STORE (self), FALSE);
+  g_return_val_if_fail (G_IS_OBJECT (item), FALSE);
+
+  locker = g_mutex_locker_new (&self->buildup_mutex);
+  if (self->cancelled)
+    return FALSE;
+  else
+    {
+      g_ptr_array_add (self->buildup, g_object_ref (item));
+      return TRUE;
+    }
+}
+
 void
-saturn_threadsafe_list_store_insert_sorted (SaturnThreadsafeListStore *self,
-                                            gpointer                   item)
+saturn_threadsafe_list_store_cancel (SaturnThreadsafeListStore *self)
 {
   g_autoptr (GMutexLocker) locker = NULL;
 
   g_return_if_fail (SATURN_THREADSAFE_LIST_STORE (self));
-  g_return_if_fail (self->sort_func != NULL);
-  g_return_if_fail (G_IS_OBJECT (item));
 
-  locker = g_mutex_locker_new (&self->buildup_mutex);
-  g_ptr_array_add (self->buildup, g_object_ref (item));
-}
-
-void
-saturn_threadsafe_list_store_clear_all (SaturnThreadsafeListStore *self)
-{
-  g_autoptr (IdleModifyData) data = NULL;
-
-  g_return_if_fail (SATURN_THREADSAFE_LIST_STORE (self));
-
-  data       = idle_modify_data_new ();
-  data->self = saturn_track_weak (self);
-
-  g_idle_add_full (
-      G_PRIORITY_DEFAULT_IDLE,
-      (GSourceFunc) idle_cb,
-      idle_modify_data_ref (data),
-      idle_modify_data_unref);
+  locker          = g_mutex_locker_new (&self->buildup_mutex);
+  self->cancelled = TRUE;
 }
 
 static void
@@ -273,61 +254,48 @@ store_changed (SaturnThreadsafeListStore *self,
                guint                      added,
                GListModel                *model)
 {
-  /* Our internal implementation _must_ lock the mutex before the
-     "items-changed" signal can be emitted */
   g_list_model_items_changed (
       G_LIST_MODEL (self), position, removed, added);
-}
-
-static gboolean
-idle_cb (IdleModifyData *data)
-{
-  g_autoptr (SaturnThreadsafeListStore) self = NULL;
-  g_autoptr (GMutexLocker) locker            = NULL;
-
-  self = g_weak_ref_get (data->self);
-  if (self == NULL)
-    goto done;
-
-  locker = g_mutex_locker_new (&self->api_mutex);
-  if (data->item != NULL)
-    g_list_store_insert_sorted (self->store, data->item, self->sort_func, self->sort_data);
-  else
-    /* No item means to clear */
-    g_list_store_remove_all (self->store);
-
-done:
-  return G_SOURCE_REMOVE;
 }
 
 static gboolean
 idle_update_cb (GWeakRef *wr)
 {
   g_autoptr (SaturnThreadsafeListStore) self = NULL;
-  g_autoptr (GMutexLocker) buildup_locker    = NULL;
-  g_autoptr (GMutexLocker) api_locker        = NULL;
-  guint i                                    = 0;
+  guint position                             = 0;
+  guint added                                = 0;
 
   self = g_weak_ref_get (wr);
   if (self == NULL)
+    return G_SOURCE_REMOVE;
+
+  g_mutex_lock (&self->buildup_mutex);
+
+#define MAX_INSERTS 32
+
+  position = g_list_model_get_n_items (G_LIST_MODEL (self->store));
+  added    = MIN (self->buildup->len, MAX_INSERTS);
+
+  if (self->sort_func != NULL)
     {
-      self->update_timeout = 0;
-      return G_SOURCE_REMOVE;
+      for (guint i = 0; i < added; i++)
+        {
+          gpointer item = NULL;
+
+          item = g_ptr_array_index (self->buildup, i);
+          g_list_store_insert_sorted (self->store, item, self->sort_func, self->user_data);
+        }
     }
+  else
+    g_list_store_splice (
+        self->store,
+        position,
+        0,
+        self->buildup->pdata,
+        added);
 
-#define MAX_INSERTS 1024
-
-  buildup_locker = g_mutex_locker_new (&self->buildup_mutex);
-  api_locker     = g_mutex_locker_new (&self->api_mutex);
-
-  for (i = 0; i < MIN (self->buildup->len, MAX_INSERTS); i++)
-    {
-      gpointer item = NULL;
-
-      item = g_ptr_array_index (self->buildup, i);
-      g_list_store_insert_sorted (self->store, item, self->sort_func, self->sort_data);
-    }
-  g_ptr_array_remove_range (self->buildup, 0, i);
+  g_ptr_array_remove_range (self->buildup, 0, added);
+  g_mutex_unlock (&self->buildup_mutex);
 
   return G_SOURCE_CONTINUE;
 }

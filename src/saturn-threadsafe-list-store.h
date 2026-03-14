@@ -28,16 +28,16 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE (SaturnThreadsafeListStore, saturn_threadsafe_list_store, SATURN, THREADSAFE_LIST_STORE, GObject)
 
 SaturnThreadsafeListStore *
-saturn_threadsafe_list_store_new (GCompareDataFunc sort_cmp,
-                                  gpointer         sort_data,
-                                  GDestroyNotify   sort_destroy_data);
+saturn_threadsafe_list_store_new (GCompareDataFunc sort_func,
+                                  gpointer         user_data,
+                                  GDestroyNotify   destroy_user_data);
+
+gboolean
+saturn_threadsafe_list_store_append (SaturnThreadsafeListStore *self,
+                                     gpointer                   item);
 
 void
-saturn_threadsafe_list_store_insert_sorted (SaturnThreadsafeListStore *self,
-                                            gpointer                   item);
-
-void
-saturn_threadsafe_list_store_clear_all (SaturnThreadsafeListStore *self);
+saturn_threadsafe_list_store_cancel (SaturnThreadsafeListStore *self);
 
 G_END_DECLS
 

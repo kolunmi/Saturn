@@ -38,9 +38,9 @@ saturn_provider_real_deinit_global (SaturnProvider *self)
 }
 
 static void
-saturn_provider_real_query (SaturnProvider *self,
-                            GObject        *object,
-                            GWeakRef       *store)
+saturn_provider_real_query (SaturnProvider            *self,
+                            GObject                   *object,
+                            SaturnThreadsafeListStore *store)
 {
 }
 
@@ -148,9 +148,9 @@ saturn_provider_deinit_global (SaturnProvider *self)
 }
 
 void
-saturn_provider_query (SaturnProvider *self,
-                       GObject        *object,
-                       GWeakRef       *store)
+saturn_provider_query (SaturnProvider            *self,
+                       GObject                   *object,
+                       SaturnThreadsafeListStore *store)
 {
   g_return_if_fail (SATURN_IS_PROVIDER (self));
   g_return_if_fail (G_IS_OBJECT (self));

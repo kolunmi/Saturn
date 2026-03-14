@@ -78,21 +78,22 @@
 
 ;; PROVIDER IMPLEMENTATION
 
-(defun query (object)
+(defun query (provider object store)
   (let* ((str (gtk:string-object-string object))
          (rgba (gdk:rgba-parse str)))
     (when rgba
-      (make-instance 'color-result
-                     :rgba rgba))))
+      (saturn:submit-result (make-instance 'color-result
+                                           :rgba rgba)
+                            store provider))))
 
-(defun score (item query)
+(defun score (provider item query)
   10000000000)
 
-(defun select (item query)
+(defun select (provider item query)
   (format t "selected the color!~%")
   nil)
 
-(defun bind-list-item (item)
+(defun bind-list-item (provider item)
   (let* ((label
            (saturn:make-widget 'gtk:label
                (:props (:label "color"
@@ -110,6 +111,6 @@
                  (gtk:box-append x color)))))
     box))
 
-(defun bind-preview (item)
+(defun bind-preview (provider item)
   (make-instance 'color-widget
                  :result item))

@@ -24,7 +24,6 @@
 #include "saturn-provider.h"
 #include "saturn-threadsafe-list-store.h"
 #include "saturn-window.h"
-#include "util.h"
 
 /* #include "util.h" */
 
@@ -398,6 +397,8 @@ start_query (SaturnWindow *self,
 {
   guint n_providers = 0;
 
+  if (self->model != NULL)
+    saturn_threadsafe_list_store_cancel (self->model);
   g_clear_object (&self->model);
   gtk_single_selection_set_model (self->selection, NULL);
   self->explicit_selection = FALSE;
@@ -414,7 +415,7 @@ start_query (SaturnWindow *self,
       g_autoptr (SaturnProvider) provider = NULL;
 
       provider = g_list_model_get_item (self->providers, i);
-      saturn_provider_query (provider, search_object, saturn_track_weak (self->model));
+      saturn_provider_query (provider, search_object, self->model);
     }
 }
 

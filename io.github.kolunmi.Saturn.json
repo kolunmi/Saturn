@@ -59,13 +59,6 @@
         },
         {
           "type" : "git",
-          "url" : "https://github.com/crategus/cl-cffi-glib.git",
-          "commit" : "bec92e2f1cf3ff444daeb563f04a3e0e0bec4641",
-          "tag" : "master",
-          "dest" : "cl-cffi-glib"
-        },
-        {
-          "type" : "git",
           "url" : "https://github.com/sionescu/bordeaux-threads.git",
           "commit" : "076fe2380abbc59b06e495dc7a35aea8eb26ba3b",
           "tag" : "v0.8.8",
@@ -136,36 +129,43 @@
         },
         {
           "type" : "git",
-          "url" : "https://github.com/crategus/cl-cffi-gtk4.git",
-          "commit" : "a2fb1075418000bce4630f834c6b8e5f7d67e703",
+          "url" : "https://github.com/kolunmi/cl-cffi-glib.git",
+          "commit" : "470f64982c8300702c08f2000270f88442c7f90d",
+          "tag" : "master",
+          "dest" : "cl-cffi-glib"
+        },
+        {
+          "type" : "git",
+          "url" : "https://github.com/kolunmi/cl-cffi-gtk4.git",
+          "commit" : "8d8f4a59738a6dd0137d724974a1d60cb95d7b38",
           "tag" : "master",
           "dest" : "cl-cffi-gtk4"
         },
         {
           "type" : "git",
-          "url" : "https://github.com/crategus/cl-cffi-cairo.git",
+          "url" : "https://github.com/kolunmi/cl-cffi-cairo.git",
           "commit" : "b0d52cbd0d956f1ca1d154c872f6ff5696e3f7a6",
           "tag" : "master",
           "dest" : "cl-cffi-cairo"
         },
         {
           "type" : "git",
-          "url" : "https://github.com/crategus/cl-cffi-pango.git",
-          "commit" : "8af2ce004d7b958ca32dc5db64fa0d76485c6867",
+          "url" : "https://github.com/kolunmi/cl-cffi-pango.git",
+          "commit" : "3996c3865367609b870d271945a32262f04bf846",
           "tag" : "master",
           "dest" : "cl-cffi-pango"
         },
         {
           "type" : "git",
-          "url" : "https://github.com/crategus/cl-cffi-graphene.git",
-          "commit" : "1e5eb3f6a420b803924db78592a2177f82de5c75",
+          "url" : "https://github.com/kolunmi/cl-cffi-graphene.git",
+          "commit" : "bedeb6c5f8b82b524079729907d55fcf201b91c9",
           "tag" : "master",
           "dest" : "cl-cffi-graphene"
         },
         {
           "type" : "git",
-          "url" : "https://github.com/crategus/cl-cffi-gdk-pixbuf.git",
-          "commit" : "e53c19d2c562f7f51b66473d84edff63b46eb97b",
+          "url" : "https://github.com/kolunmi/cl-cffi-gdk-pixbuf.git",
+          "commit" : "b8bf37fb111c434e1adaa242044c03408940ea37",
           "tag" : "master",
           "dest" : "cl-cffi-gdk-pixbuf"
         }
