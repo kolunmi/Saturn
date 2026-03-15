@@ -76,7 +76,7 @@
         (name (file-namestring (g:object-data item "path"))))
     (round (/ 10000.0
               (- (/ (length name) (length str))
-                 (/ (search str name) (length name)))))))
+                 (/ (or (search str name) 0.0) (length name)))))))
 
 (defun select (provider item query)
   (format t "selected the file!~%")
