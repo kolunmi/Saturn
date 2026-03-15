@@ -17,6 +17,8 @@
 ;;
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
+(defvar *min-query-length* 3)
+
 (gobject:define-gobject-subclass
     "SaturnBrewResult"
     brew-result
@@ -34,41 +36,42 @@
 (let ((*timeout-source* 0))
 
   (defun query (provider object store)
+    (when (not (= *timeout-source* 0))
+      (g:source-remove *timeout-source*))
     (let* ((str (gtk:string-object-string object)))
-      (when (not (= *timeout-source* 0))
-        (g:source-remove *timeout-source*))
-      (setf *timeout-source*
-            ;; debounce 0.5 seconds
-            (g:timeout-add
-             500
-             (lambda ()
-               (setf *timeout-source* 0)
-               (bordeaux-threads:make-thread
-                (lambda ()
-                  (block root
-                    (let ((results
-                            (ignore-errors
-                             (uiop:run-program (append *brew-cmd*
-                                                       (list "search"
-                                                             "--desc"
-                                                             str))
-                                               :output :string))))
-                      (when results
-                        (with-input-from-string (s results)
-                          (loop for line = (read-line s nil nil)
-                                while line
-                                do (let* ((colon-idx (search ":" line)))
-                                     (when colon-idx
-                                       (let ((pkg-name (subseq line 0 colon-idx))
-                                             (pkg-desc (subseq line (1+ colon-idx))))
-                                         (when (and pkg-name pkg-desc)
-                                           (let ((result (make-instance 'brew-result)))
-                                             (setf (g:object-data result "pkg-name") pkg-name)
-                                             (setf (g:object-data result "pkg-desc") pkg-desc)
-                                             (unless (saturn:submit-result result store provider)
-                                               (return-from root))))))))))))))
-               ;; don't run again
-               nil)))))
+      (when (>= (length str) *min-query-length*)
+        (setf *timeout-source*
+              ;; debounce 0.5 seconds
+              (g:timeout-add
+               500
+               (lambda ()
+                 (setf *timeout-source* 0)
+                 (bordeaux-threads:make-thread
+                  (lambda ()
+                    (block root
+                      (let ((results
+                              (ignore-errors
+                               (uiop:run-program (append *brew-cmd*
+                                                         (list "search"
+                                                               "--desc"
+                                                               str))
+                                                 :output :string))))
+                        (when results
+                          (with-input-from-string (s results)
+                            (loop for line = (read-line s nil nil)
+                                  while line
+                                  do (let* ((colon-idx (search ":" line)))
+                                       (when colon-idx
+                                         (let ((pkg-name (subseq line 0 colon-idx))
+                                               (pkg-desc (subseq line (1+ colon-idx))))
+                                           (when (and pkg-name pkg-desc)
+                                             (let ((result (make-instance 'brew-result)))
+                                               (setf (g:object-data result "pkg-name") pkg-name)
+                                               (setf (g:object-data result "pkg-desc") pkg-desc)
+                                               (unless (saturn:submit-result result store provider)
+                                                 (return-from root))))))))))))))
+                 ;; don't run again
+                 nil))))))
 
   )
 

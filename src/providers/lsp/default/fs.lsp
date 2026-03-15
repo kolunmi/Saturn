@@ -17,6 +17,8 @@
 ;;
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
+(defvar *min-query-length* 2)
+
 (let ((*work-lock* (bordeaux-threads:make-lock))
       (*files-array* (make-array 0 :fill-pointer t :adjustable t)))
 
@@ -56,17 +58,18 @@
 
   (defun query (provider object store)
     (let ((str (gtk:string-object-string object)))
-      (bordeaux-threads:make-thread
-       (lambda ()
-         (bordeaux-threads:with-lock-held (*work-lock*)
-           (block root
-             (loop for path across *files-array*
-                   when (search str (file-namestring path))
-                     do (let ((result (make-instance 'fs-result)))
-                          ;; gobject properties weirdly don't work
-                          (setf (g:object-data result "path") path)
-                          (unless (saturn:submit-result result store provider)
-                            (return-from root))))))))))
+      (when (>= (length str) *min-query-length*)
+        (bordeaux-threads:make-thread
+         (lambda ()
+           (bordeaux-threads:with-lock-held (*work-lock*)
+             (block root
+               (loop for path across *files-array*
+                     when (search str (file-namestring path))
+                       do (let ((result (make-instance 'fs-result)))
+                            ;; gobject properties weirdly don't work
+                            (setf (g:object-data result "path") path)
+                            (unless (saturn:submit-result result store provider)
+                              (return-from root)))))))))))
 
   )
 
