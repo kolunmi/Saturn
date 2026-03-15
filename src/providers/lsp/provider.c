@@ -27,6 +27,7 @@
 
 #include "provider.h"
 #include "saturn-provider.h"
+#include "saturn-signal-widget.h"
 #include "saturn-threadsafe-list-store.h"
 #include "util.h"
 
@@ -155,6 +156,8 @@ saturn_lsp_provider_class_init (SaturnLspProviderClass *klass)
           G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (object_class, LAST_PROP, props);
+
+  g_type_ensure (SATURN_TYPE_SIGNAL_WIDGET);
 }
 
 static void

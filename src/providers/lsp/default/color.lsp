@@ -23,58 +23,18 @@
     (:superclass g:object
      :export t
      :interfaces ())
-    ((rgba
-      color-result-rgba
-      "rgba" "GdkRGBA" t t)))
+    nil)
 
-(gobject:define-gobject-subclass
-    "SaturnColorWidget"
-    color-widget
-    (:superclass gtk:widget
-     :export t
-     :interfaces ())
-    ((result
-      color-widget-result
-      "result" "SaturnColorResult" t t)))
-
-(gobject:define-vtable ("SaturnColorWidget" color-widget)
-  (:skip parent-instance (:struct gobject::object-class))
-  ;; Methods for the GtkWidget class
-  (:skip show :pointer)
-  (:skip hide :pointer)
-  (:skip map :pointer)
-  (:skip unmap :pointer)
-  (:skip realize :pointer)
-  (:skip unrealize :pointer)
-  (:skip root :pointer)
-  (:skip unroot :pointer)
-  (:skip size-allocate :pointer)
-  (:skip state-flags-changed :pointer)
-  (:skip direction-changed :pointer)
-  (:skip get-request-mode :pointer)
-  (:skip measure :pointer)
-  (:skip mnemonic-activate :pointer)
-  (:skip grab-focus :pointer)
-  (:skip focus :pointer)
-  (:skip set-focus-child :pointer)
-  (:skip move-focus :pointer)
-  (:skip keynav-failed :pointer)
-  (:skip query-tooltip :pointer)
-  (:skip compute-expand :pointer)
-  (:skip css-changed :pointer)
-  (:skip system-settings-changed :pointer)
-  (:skip contains :pointer)
-  (snapshot (:void (self (g:object color-widget))
-                   (snapshot (g:object gtk:snapshot)))))
-
-(defmethod color-widget-snapshot-impl ((self color-widget) (snapshot gtk:snapshot))
-  (let ((result (color-widget-result self)))
-    (graphene:with-rect (bounds 0 0
-                                (gtk:widget-width self)
-                                (gtk:widget-height self))
-      (gtk:snapshot-append-color snapshot
-                                 (color-result-rgba result)
-                                 bounds))))
+(defun make-color-widget (rgba)
+  (saturn:make-widget 'saturn:signal-widget
+      (:connect (("snapshot"
+                  (lambda (self snapshot)
+                    (graphene:with-rect (bounds 0 0
+                                                (gtk:widget-width self)
+                                                (gtk:widget-height self))
+                      (gtk:snapshot-append-color snapshot
+                                                 rgba
+                                                 bounds))))))))
 
 ;; PROVIDER IMPLEMENTATION
 
@@ -82,8 +42,9 @@
   (let* ((str (gtk:string-object-string object))
          (rgba (gdk:rgba-parse str)))
     (when rgba
-      (saturn:submit-result (make-instance 'color-result
-                                           :rgba rgba)
+      (saturn:submit-result (let ((result (make-instance 'color-result)))
+                              (setf (g:object-data result "rgba") rgba)
+                              result)
                             store provider))))
 
 (defun score (provider item query)
@@ -93,15 +54,16 @@
   (format t "selected the color!~%")
   nil)
 
+
 (defun bind-list-item (provider item)
   (let* ((label
            (saturn:make-widget 'gtk:label
-               (:props (:label "color"
+               (:props (:label "Valid Color"
                         :hexpand t))))
          (color
-           (saturn:make-widget 'color-widget
-               (:props (:result item
-                        :width-request 50))))
+           (let ((widget (make-color-widget (g:object-data item "rgba"))))
+             (setf (gtk:widget-width-request widget) 50)
+             widget))
          (box
            (saturn:make-widget 'gtk:box
                (:props (:orientation :horizontal
@@ -112,5 +74,23 @@
     box))
 
 (defun bind-preview (provider item)
-  (make-instance 'color-widget
-                 :result item))
+  (let* ((rgba (g:object-data item "rgba"))
+         (color (make-color-widget rgba))
+         (hex (gdk:rgba-to-string rgba))
+         (copy-button
+           (saturn:make-widget 'gtk:button
+               (:props (:label "Copy Color"
+                        :halign :center
+                        :valign :center)
+                :styles ("osd")
+                :connect (("clicked"
+                           (lambda (self)
+                             (gdk:clipboard-set-text (gdk:display-clipboard
+                                                      (gdk:display-default))
+                                                     hex)))))))
+         (overlay
+           (saturn:make-widget 'gtk:overlay
+               (:props (:child color))
+               (lambda (x)
+                 (gtk:overlay-add-overlay x copy-button)))))
+    overlay))

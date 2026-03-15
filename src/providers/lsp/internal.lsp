@@ -23,3 +23,15 @@
         `(funcall ,init-fn widget))
      widget))
 (export 'make-widget)
+
+
+(gobject:define-gobject
+    "SaturnSignalWidget"
+    signal-widget
+    (:superclass gtk:widget
+     :export t
+     :interfaces ())
+    ((child
+      signal-widget-child
+      "child" "GtkWidget" t t)))
+(setf (g:symbol-for-gtype (g:gtype "SaturnSignalWidget")) 'signal-widget)
