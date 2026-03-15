@@ -58,14 +58,15 @@
                           (loop for line = (read-line s nil nil)
                                 while line
                                 do (let* ((colon-idx (search ":" line)))
-                                     (when (and colon-idx)
-                                       (let ((result (make-instance 'brew-result))
-                                             (pkg-name (subseq line 0 colon-idx))
+                                     (when colon-idx
+                                       (let ((pkg-name (subseq line 0 colon-idx))
                                              (pkg-desc (subseq line (1+ colon-idx))))
-                                         (setf (g:object-data result "pkg-name") pkg-name)
-                                         (setf (g:object-data result "pkg-desc") pkg-desc)
-                                         (unless (saturn:submit-result result store provider)
-                                           (return-from root))))))))))))
+                                         (when (and pkg-name pkg-desc)
+                                           (let ((result (make-instance 'brew-result)))
+                                             (setf (g:object-data result "pkg-name") pkg-name)
+                                             (setf (g:object-data result "pkg-desc") pkg-desc)
+                                             (unless (saturn:submit-result result store provider)
+                                               (return-from root))))))))))))))
                ;; don't run again
                nil)))))
 
@@ -78,21 +79,79 @@
   (format t "selected the package!~%")
   nil)
 
-
 (defun bind-list-item (provider item)
-  (let* ((str (concatenate 'string
-                           "BREW: "
-                           "Package \""
-                           (g:object-data item "pkg-name")
-                           "\""
-                           " --- "
-                           (g:object-data item "pkg-desc")))
-         (label
-           (saturn:make-widget 'gtk:label
-                               (:props (:label str
-                                        :xalign 0.0
-                                        :ellipsize :end)))))
-    label))
+  (let* ((pkg-name (g:object-data item "pkg-name"))
+         (pkg-desc (g:object-data item "pkg-desc"))
+         (icon
+           (saturn:make-widget
+               'gtk:image
+               (:props (:icon-name "package-x-generic-symbolic"
+                        :icon-size :normal))))
+         (start-label
+           (saturn:make-widget
+               'gtk:label
+               (:props (:label pkg-name
+                        :xalign 0.0
+                        :ellipsize :end
+                        :margin-end 25)
+                :styles ("title-4"))))
+         (end-label
+           (saturn:make-widget
+               'gtk:label
+               (:props (:label (concatenate 'string
+                                            "Brew Package: "
+                                            pkg-desc)
+                        :xalign 1.0
+                        :ellipsize :end
+                        :hexpand t)
+                :styles ("subtitle"))))
+         (box
+           (saturn:make-widget
+               'gtk:box
+               (:props (:orientation :horizontal
+                        :spacing 5))
+               (lambda (x)
+                 (gtk:box-append x icon)
+                 (gtk:box-append x start-label)
+                 (gtk:box-append x end-label)))))
+    box))
 
 (defun bind-preview (provider item)
-  (bind-list-item provider item))
+  (let* ((pkg-name (g:object-data item "pkg-name"))
+         (pkg-desc (g:object-data item "pkg-desc"))
+         (icon
+           (saturn:make-widget
+               'gtk:image
+               (:props (:icon-name "package-x-generic-symbolic"
+                        :halign :center
+                        :pixel-size 64))))
+         (top-label
+           (saturn:make-widget
+               'gtk:label
+               (:props (:label pkg-name
+                        :xalign 0.5
+                        :halign :center
+                        :wrap t)
+                :styles ("title-2"))))
+         (bottom-label
+           (saturn:make-widget
+               'gtk:label
+               (:props (:label pkg-desc
+                        :xalign 0.5
+                        :halign :center
+                        :justify :center
+                        :wrap t
+                        :hexpand t)
+                :styles ("subtitle"))))
+         (box
+           (saturn:make-widget
+               'gtk:box
+               (:props (:orientation :vertical
+                        :spacing 10
+                        :valign :center
+                        :halign :center))
+               (lambda (x)
+                 (gtk:box-append x icon)
+                 (gtk:box-append x top-label)
+                 (gtk:box-append x bottom-label)))))
+    box))
