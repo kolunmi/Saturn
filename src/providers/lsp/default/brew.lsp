@@ -37,7 +37,8 @@
 
   (defun query (provider object store)
     (when (not (= *timeout-source* 0))
-      (g:source-remove *timeout-source*))
+      (g:source-remove *timeout-source*)
+      (setf *timeout-source* 0))
     (let* ((str (gtk:string-object-string object)))
       (when (>= (length str) *min-query-length*)
         (setf *timeout-source*
