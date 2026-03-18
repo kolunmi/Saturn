@@ -18,18 +18,94 @@
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 (defvar *min-query-length* 3)
+(defvar *brew-cmd* '("flatpak-spawn"
+                     "--host"
+                     "/var/home/linuxbrew/.linuxbrew/bin/brew"))
 
 (gobject:define-gobject-subclass
     "SaturnBrewResult"
     brew-result
-    (:superclass g:object
+    (:superclass saturn:generic-result
      :export t
      :interfaces ())
     nil)
+(gobject:define-gobject-subclass
+    "SaturnBrewResultListItem"
+    brew-result-list-item
+    (:superclass saturn:signal-widget
+     :export nil
+     :interfaces ())
+    nil)
 
-(defvar *brew-cmd* '("flatpak-spawn"
-                     "--host"
-                     "/var/home/linuxbrew/.linuxbrew/bin/brew"))
+(defvar list-item-ui
+  "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<interface>
+  <template class=\"SaturnBrewResultListItem\">
+    <property name=\"child\">
+      <object class=\"GtkBox\">
+        <property name=\"orientation\">horizontal</property>
+        <property name=\"spacing\">6</property>
+        <child>
+          <object class=\"GtkImage\">
+            <property name=\"icon-name\">package-x-generic-symbolic</property>
+            <property name=\"icon-size\">normal</property>
+          </object>
+        </child>
+        <child>
+          <object class=\"GtkLabel\">
+            <style>
+              <class name=\"subtitle\"/>
+            </style>
+            <property name=\"label\">Brew</property>
+          </object>
+        </child>
+        <child>
+          <object class=\"GtkLabel\">
+            <style>
+              <class name=\"title-4\"/>
+            </style>
+            <property name=\"halign\">start</property>
+            <property name=\"ellipsize\">end</property>
+            <binding name=\"label\">
+              <lookup name=\"string\" type=\"GtkStringObject\">
+                <lookup name=\"obj0\" type=\"SaturnBrewResult\">
+                  <lookup name=\"item\">SaturnBrewResultListItem</lookup>
+                </lookup>
+              </lookup>
+            </binding>
+          </object>
+        </child>
+        <child>
+          <object class=\"GtkLabel\">
+            <style>
+              <class name=\"subtitle\"/>
+            </style>
+            <property name=\"halign\">end</property>
+            <property name=\"hexpand\">true</property>
+            <property name=\"ellipsize\">end</property>
+            <binding name=\"label\">
+              <lookup name=\"string\" type=\"GtkStringObject\">
+                <lookup name=\"obj1\" type=\"SaturnBrewResult\">
+                  <lookup name=\"item\">SaturnBrewResultListItem</lookup>
+                </lookup>
+              </lookup>
+            </binding>
+          </object>
+        </child>
+      </object>
+    </property>
+  </template>
+</interface>
+")
+(defmethod g:object-class-init :after
+    ((subclass (eql (find-class 'brew-result-list-item))) class data)
+  (gtk:widget-class-set-template "SaturnBrewResultListItem" list-item-ui))
+(defmethod g:object-instance-init :after
+    ((subclass (eql (find-class 'brew-result-list-item))) instance data)
+  (declare (ignore class data))
+  (gtk:widget-init-template instance))
+(setf +list-bind-gtype+ "SaturnBrewResultListItem")
+
 
 ;; PROVIDER IMPLEMENTATION
 
@@ -66,9 +142,9 @@
                                          (let ((pkg-name (subseq line 0 colon-idx))
                                                (pkg-desc (subseq line (1+ colon-idx))))
                                            (when (and pkg-name pkg-desc)
-                                             (let ((result (make-instance 'brew-result)))
-                                               (setf (g:object-data result "pkg-name") pkg-name)
-                                               (setf (g:object-data result "pkg-desc") pkg-desc)
+                                             (let ((result (make-instance 'brew-result
+                                                                          :obj0 (gtk:string-object-new pkg-name)
+                                                                          :obj1 (gtk:string-object-new pkg-desc))))
                                                (unless (saturn:submit-result result store provider)
                                                  (return-from root))))))))))))))
                  ;; don't run again
@@ -83,46 +159,9 @@
   (format t "selected the package!~%")
   nil)
 
-(defun bind-list-item (provider item)
-  (let* ((pkg-name (g:object-data item "pkg-name"))
-         (pkg-desc (g:object-data item "pkg-desc"))
-         (icon
-           (saturn:make-widget
-               'gtk:image
-               (:props (:icon-name "package-x-generic-symbolic"
-                        :icon-size :normal))))
-         (start-label
-           (saturn:make-widget
-               'gtk:label
-               (:props (:label pkg-name
-                        :xalign 0.0
-                        :ellipsize :end
-                        :margin-end 25)
-                :styles ("title-4"))))
-         (end-label
-           (saturn:make-widget
-               'gtk:label
-               (:props (:label (concatenate 'string
-                                            "Brew Package: "
-                                            pkg-desc)
-                        :xalign 1.0
-                        :ellipsize :end
-                        :hexpand t)
-                :styles ("subtitle"))))
-         (box
-           (saturn:make-widget
-               'gtk:box
-               (:props (:orientation :horizontal
-                        :spacing 5))
-               (lambda (x)
-                 (gtk:box-append x icon)
-                 (gtk:box-append x start-label)
-                 (gtk:box-append x end-label)))))
-    box))
-
 (defun bind-preview (provider item)
-  (let* ((pkg-name (g:object-data item "pkg-name"))
-         (pkg-desc (g:object-data item "pkg-desc"))
+  (let* ((pkg-name (gtk:string-object-string (g:object-property item "obj0")))
+         (pkg-desc (gtk:string-object-string (g:object-property item "obj1")))
          (icon
            (saturn:make-widget
                'gtk:image
