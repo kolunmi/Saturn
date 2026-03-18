@@ -271,7 +271,7 @@ idle_update_cb (GWeakRef *wr)
 
   g_mutex_lock (&self->buildup_mutex);
 
-#define MAX_INSERTS 32
+#define MAX_INSERTS 512
 
   position = g_list_model_get_n_items (G_LIST_MODEL (self->store));
   added    = MIN (self->buildup->len, MAX_INSERTS);

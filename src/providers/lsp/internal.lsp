@@ -26,6 +26,26 @@
 
 
 (gobject:define-gobject
+    "SaturnGenericResult"
+    generic-result
+    (:superclass g:object
+     :export t
+     :interfaces ())
+    ((obj0
+      generic-result-obj0
+      "obj0" "GObject" t t)
+     (obj1
+      generic-result-obj1
+      "obj1" "GObject" t t)
+     (obj2
+      generic-result-obj2
+      "obj2" "GObject" t t)
+     (obj3
+      generic-result-obj3
+      "obj3" "GObject" t t)))
+(setf (g:symbol-for-gtype (g:gtype "SaturnGenericResult")) 'generic-result)
+
+(gobject:define-gobject
     "SaturnSignalWidget"
     signal-widget
     (:superclass gtk:widget

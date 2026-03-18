@@ -17,6 +17,57 @@
 ;;
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
+(gobject:define-gobject-subclass
+    "SaturnFsResult"
+    fs-result
+    (:superclass saturn:generic-result
+     :export nil
+     :interfaces ())
+    nil)
+(gobject:define-gobject-subclass
+    "SaturnFsResultListItem"
+    fs-result-list-item
+    (:superclass saturn:signal-widget
+     :export nil
+     :interfaces ())
+    nil)
+
+(defvar list-item-ui
+  "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<interface>
+  <template class=\"SaturnFsResultListItem\">
+    <property name=\"child\">
+      <object class=\"GtkBox\">
+        <property name=\"orientation\">horizontal</property>
+        <property name=\"spacing\">6</property>
+        <child>
+          <object class=\"GtkLabel\">
+            <property name=\"halign\">start</property>
+            <property name=\"hexpand\">true</property>
+            <property name=\"ellipsize\">start</property>
+            <binding name=\"label\">
+              <lookup name=\"string\" type=\"GtkStringObject\">
+                <lookup name=\"obj0\" type=\"SaturnFsResult\">
+                  <lookup name=\"item\">SaturnFsResultListItem</lookup>
+                </lookup>
+              </lookup>
+            </binding>
+          </object>
+        </child>
+      </object>
+    </property>
+  </template>
+</interface>
+")
+(defmethod g:object-class-init :after
+    ((subclass (eql (find-class 'fs-result-list-item))) class data)
+  (gtk:widget-class-set-template "SaturnFsResultListItem" list-item-ui))
+(defmethod g:object-instance-init :after
+    ((subclass (eql (find-class 'fs-result-list-item))) instance data)
+  (declare (ignore class data))
+  (gtk:widget-init-template instance))
+(setf +list-bind-gtype+ "SaturnFsResultListItem")
+
 (defvar *min-query-length* 2)
 
 (let ((*work-lock* (bordeaux-threads:make-lock))
@@ -44,16 +95,6 @@
    (lambda ()
      (gather-files #P"~/")))
 
-  (gobject:define-gobject-subclass
-      "SaturnFsResult"
-      fs-result
-      (:superclass g:object
-       :export t
-       :interfaces ())
-      ((name
-        fs-result-name
-        "name" "gchararray" t t)))
-
   ;; PROVIDER IMPLEMENTATION
 
   (defun query (provider object store)
@@ -65,7 +106,11 @@
              (block root
                (loop for path across *files-array*
                      when (search str (file-namestring path))
-                       do (let ((result (make-instance 'fs-result)))
+                       do (let* ((name (file-namestring path))
+                                 (directory (uiop:unix-namestring (uiop:pathname-directory-pathname path)))
+                                 (result (make-instance 'fs-result
+                                                        :obj0 (gtk:string-object-new name)
+                                                        :obj1 (gtk:string-object-new directory))))
                             ;; gobject properties weirdly don't work
                             (setf (g:object-data result "path") path)
                             (unless (saturn:submit-result result store provider)

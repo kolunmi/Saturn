@@ -23,20 +23,22 @@
 
 #include "saturn-signal-widget.h"
 
-struct _SaturnSignalWidget
+typedef struct
 {
   GtkWidget parent_instance;
 
   GtkWidget *child;
-};
+  GObject   *item;
+} SaturnSignalWidgetPrivate;
 
-G_DEFINE_FINAL_TYPE (SaturnSignalWidget, saturn_signal_widget, GTK_TYPE_WIDGET);
+G_DEFINE_TYPE_WITH_PRIVATE (SaturnSignalWidget, saturn_signal_widget, GTK_TYPE_WIDGET);
 
 enum
 {
   PROP_0,
 
   PROP_CHILD,
+  PROP_ITEM,
 
   LAST_PROP
 };
@@ -53,9 +55,11 @@ static guint signals[LAST_SIGNAL];
 static void
 saturn_signal_widget_dispose (GObject *object)
 {
-  SaturnSignalWidget *self = SATURN_SIGNAL_WIDGET (object);
+  SaturnSignalWidget        *self = SATURN_SIGNAL_WIDGET (object);
+  SaturnSignalWidgetPrivate *priv = saturn_signal_widget_get_instance_private (self);
 
-  g_clear_pointer (&self->child, gtk_widget_unparent);
+  g_clear_pointer (&priv->child, gtk_widget_unparent);
+  g_clear_pointer (&priv->item, g_object_unref);
 
   G_OBJECT_CLASS (saturn_signal_widget_parent_class)->dispose (object);
 }
@@ -66,12 +70,16 @@ saturn_signal_widget_get_property (GObject    *object,
                                    GValue     *value,
                                    GParamSpec *pspec)
 {
-  SaturnSignalWidget *self = SATURN_SIGNAL_WIDGET (object);
+  SaturnSignalWidget        *self = SATURN_SIGNAL_WIDGET (object);
+  SaturnSignalWidgetPrivate *priv = saturn_signal_widget_get_instance_private (self);
 
   switch (prop_id)
     {
     case PROP_CHILD:
       g_value_set_object (value, saturn_signal_widget_get_child (self));
+      break;
+    case PROP_ITEM:
+      g_value_set_object (value, priv->item);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -84,12 +92,17 @@ saturn_signal_widget_set_property (GObject      *object,
                                    const GValue *value,
                                    GParamSpec   *pspec)
 {
-  SaturnSignalWidget *self = SATURN_SIGNAL_WIDGET (object);
+  SaturnSignalWidget        *self = SATURN_SIGNAL_WIDGET (object);
+  SaturnSignalWidgetPrivate *priv = saturn_signal_widget_get_instance_private (self);
 
   switch (prop_id)
     {
     case PROP_CHILD:
       saturn_signal_widget_set_child (self, g_value_get_object (value));
+      break;
+    case PROP_ITEM:
+      g_clear_pointer (&priv->item, g_object_unref);
+      priv->item = g_value_dup_object (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -97,12 +110,31 @@ saturn_signal_widget_set_property (GObject      *object,
 }
 
 static void
+saturn_signal_widget_size_allocate (GtkWidget *widget,
+                                    int        width,
+                                    int        height,
+                                    int        baseline)
+{
+  SaturnSignalWidget        *self = SATURN_SIGNAL_WIDGET (widget);
+  SaturnSignalWidgetPrivate *priv = saturn_signal_widget_get_instance_private (self);
+
+  if (priv->child != NULL &&
+      gtk_widget_should_layout (priv->child))
+    gtk_widget_allocate (priv->child, width, height, baseline, NULL);
+  gtk_widget_queue_draw (widget);
+}
+
+static void
 saturn_signal_widget_snapshot (GtkWidget   *widget,
                                GtkSnapshot *snapshot)
 {
-  SaturnSignalWidget *self = SATURN_SIGNAL_WIDGET (widget);
+  SaturnSignalWidget        *self = SATURN_SIGNAL_WIDGET (widget);
+  SaturnSignalWidgetPrivate *priv = saturn_signal_widget_get_instance_private (self);
 
   g_signal_emit (self, signals[SIGNAL_SNAPSHOT], 0, snapshot);
+
+  if (priv->child != NULL)
+    gtk_widget_snapshot_child (GTK_WIDGET (self), priv->child, snapshot);
 }
 
 static void
@@ -119,8 +151,15 @@ saturn_signal_widget_class_init (SaturnSignalWidgetClass *klass)
       g_param_spec_object (
           "child",
           NULL, NULL,
-          G_TYPE_OBJECT,
+          GTK_TYPE_WIDGET,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
+
+  props[PROP_ITEM] =
+      g_param_spec_object (
+          "item",
+          NULL, NULL,
+          G_TYPE_OBJECT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (object_class, LAST_PROP, props);
 
@@ -140,7 +179,8 @@ saturn_signal_widget_class_init (SaturnSignalWidgetClass *klass)
       G_TYPE_FROM_CLASS (klass),
       g_cclosure_marshal_VOID__OBJECTv);
 
-  widget_class->snapshot = saturn_signal_widget_snapshot;
+  widget_class->size_allocate = saturn_signal_widget_size_allocate;
+  widget_class->snapshot      = saturn_signal_widget_snapshot;
 }
 
 static void
@@ -157,25 +197,32 @@ saturn_signal_widget_new (void)
 GtkWidget *
 saturn_signal_widget_get_child (SaturnSignalWidget *self)
 {
+  SaturnSignalWidgetPrivate *priv = NULL;
+
   g_return_val_if_fail (SATURN_IS_SIGNAL_WIDGET (self), NULL);
-  return self->child;
+
+  priv = saturn_signal_widget_get_instance_private (self);
+  return priv->child;
 }
 
 void
 saturn_signal_widget_set_child (SaturnSignalWidget *self,
                                 GtkWidget          *child)
 {
+  SaturnSignalWidgetPrivate *priv = NULL;
+
   g_return_if_fail (SATURN_IS_SIGNAL_WIDGET (self));
   g_return_if_fail (child == NULL || GTK_IS_WIDGET (child));
 
-  if (self->child == child)
+  priv = saturn_signal_widget_get_instance_private (self);
+  if (priv->child == child)
     return;
 
   if (child != NULL)
     g_return_if_fail (gtk_widget_get_parent (child) == NULL);
 
-  g_clear_pointer (&self->child, gtk_widget_unparent);
-  self->child = child;
+  g_clear_pointer (&priv->child, gtk_widget_unparent);
+  priv->child = child;
 
   if (child != NULL)
     gtk_widget_set_parent (child, GTK_WIDGET (self));

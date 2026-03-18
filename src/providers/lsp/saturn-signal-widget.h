@@ -25,7 +25,12 @@
 G_BEGIN_DECLS
 
 #define SATURN_TYPE_SIGNAL_WIDGET (saturn_signal_widget_get_type ())
-G_DECLARE_FINAL_TYPE (SaturnSignalWidget, saturn_signal_widget, SATURN, SIGNAL_WIDGET, GtkWidget)
+G_DECLARE_DERIVABLE_TYPE (SaturnSignalWidget, saturn_signal_widget, SATURN, SIGNAL_WIDGET, GtkWidget)
+
+struct _SaturnSignalWidgetClass
+{
+  GtkWidgetClass parent_class;
+};
 
 SaturnSignalWidget *
 saturn_signal_widget_new (void);

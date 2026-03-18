@@ -26,10 +26,10 @@
 #include <ecl/ecl.h>
 
 #include "provider.h"
+#include "saturn-generic-result.h"
 #include "saturn-provider.h"
 #include "saturn-signal-widget.h"
 #include "saturn-threadsafe-list-store.h"
-#include "util.h"
 
 struct _SaturnLspProvider
 {
@@ -37,6 +37,8 @@ struct _SaturnLspProvider
 
   char *name;
   char *script_uri;
+
+  GType list_bind_type;
 
   gboolean loaded;
 };
@@ -157,12 +159,14 @@ saturn_lsp_provider_class_init (SaturnLspProviderClass *klass)
 
   g_object_class_install_properties (object_class, LAST_PROP, props);
 
+  g_type_ensure (SATURN_TYPE_GENERIC_RESULT);
   g_type_ensure (SATURN_TYPE_SIGNAL_WIDGET);
 }
 
 static void
 saturn_lsp_provider_init (SaturnLspProvider *self)
 {
+  self->list_bind_type = G_TYPE_NONE;
 }
 
 static cl_object
@@ -237,10 +241,10 @@ provider_query (SaturnProvider            *provider,
                 GObject                   *object,
                 SaturnThreadsafeListStore *store)
 {
-  SaturnLspProvider *self = SATURN_LSP_PROVIDER (provider);
-  g_autofree char   *fun  = NULL;
+  SaturnLspProvider *self     = SATURN_LSP_PROVIDER (provider);
+  char               fun[256] = { 0 };
 
-  fun = g_strdup_printf ("%s:query", self->name);
+  g_snprintf (fun, sizeof (fun), "%s:query", self->name);
   cl_eval (cl_list (
       4,
       ecl_read_from_cstring (fun),
@@ -254,12 +258,12 @@ provider_score (SaturnProvider *provider,
                 gpointer        item,
                 GObject        *query)
 {
-  SaturnLspProvider *self   = SATURN_LSP_PROVIDER (provider);
-  g_autofree char   *fun    = NULL;
-  cl_object          result = NULL;
-  gsize              score  = 0;
+  SaturnLspProvider *self     = SATURN_LSP_PROVIDER (provider);
+  char               fun[256] = { 0 };
+  cl_object          result   = NULL;
+  gsize              score    = 0;
 
-  fun    = g_strdup_printf ("%s:score", self->name);
+  g_snprintf (fun, sizeof (fun), "%s:score", self->name);
   result = cl_eval (cl_list (
       4,
       ecl_read_from_cstring (fun),
@@ -282,12 +286,12 @@ provider_select (SaturnProvider *provider,
                  GObject        *query,
                  GError        **error)
 {
-  SaturnLspProvider *self   = SATURN_LSP_PROVIDER (provider);
-  g_autofree char   *fun    = NULL;
-  cl_object          result = NULL;
-  gboolean           ret    = FALSE;
+  SaturnLspProvider *self     = SATURN_LSP_PROVIDER (provider);
+  char               fun[256] = { 0 };
+  cl_object          result   = NULL;
+  gboolean           ret      = FALSE;
 
-  fun    = g_strdup_printf ("%s:select", self->name);
+  g_snprintf (fun, sizeof (fun), "%s:select", self->name);
   result = cl_eval (cl_list (
       4,
       ecl_read_from_cstring (fun),
@@ -304,11 +308,38 @@ provider_bind_list_item (SaturnProvider *provider,
                          gpointer        object,
                          AdwBin         *list_item)
 {
-  SaturnLspProvider *self   = SATURN_LSP_PROVIDER (provider);
-  g_autofree char   *fun    = NULL;
-  cl_object          result = NULL;
+  SaturnLspProvider *self     = SATURN_LSP_PROVIDER (provider);
+  char               fun[256] = { 0 };
+  cl_object          result   = NULL;
 
-  fun    = g_strdup_printf ("%s:bind-list-item", self->name);
+  /* Here to give providers the opportunity to avoid calling lisp in quick
+     succession and slowing down the UI */
+  if (self->list_bind_type == G_TYPE_NONE)
+    {
+      g_autofree char *list_bind_gtype = NULL;
+
+      list_bind_gtype = g_strdup_printf ("(let ((gtype (ignore-errors %s:+list-bind-gtype+)))"
+                                         "(if gtype gtype \"GTypeNone\"))",
+                                         self->name);
+
+      self->list_bind_type = g_type_from_name (
+          ecl_base_string_pointer_safe (
+              si_coerce_to_base_string (
+                  cl_eval (ecl_read_from_cstring (list_bind_gtype)))));
+      if (!g_type_is_a (self->list_bind_type, GTK_TYPE_WIDGET))
+        self->list_bind_type = G_TYPE_INVALID;
+    }
+
+  if (self->list_bind_type > 0)
+    {
+      GtkWidget *widget = NULL;
+
+      widget = g_object_new (self->list_bind_type, "item", object, NULL);
+      adw_bin_set_child (list_item, widget);
+      return;
+    }
+
+  g_snprintf (fun, sizeof (fun), "%s:bind-list-item", self->name);
   result = cl_eval (cl_list (
       3,
       ecl_read_from_cstring (fun),
@@ -325,11 +356,11 @@ provider_bind_preview (SaturnProvider *provider,
                        gpointer        object,
                        AdwBin         *preview)
 {
-  SaturnLspProvider *self   = SATURN_LSP_PROVIDER (provider);
-  g_autofree char   *fun    = NULL;
-  cl_object          result = NULL;
+  SaturnLspProvider *self     = SATURN_LSP_PROVIDER (provider);
+  char               fun[256] = { 0 };
+  cl_object          result   = NULL;
 
-  fun    = g_strdup_printf ("%s:bind-preview", self->name);
+  g_snprintf (fun, sizeof (fun), "%s:bind-preview", self->name);
   result = cl_eval (cl_list (
       3,
       ecl_read_from_cstring (fun),
@@ -414,14 +445,13 @@ ensure_lisp (SaturnLspProvider *self)
 
   eval_before = g_strdup_printf ("(progn (defpackage :%s "
                                  "  (:use :cl) "
-                                 "  (:export :query :score :select :bind-list-item :bind-preview)) "
+                                 "  (:export :+list-bind-gtype+ :query :score :select :bind-list-item :bind-preview)) "
                                  "(in-package :%s))",
                                  self->name, self->name);
   cl_eval (ecl_read_from_cstring (eval_before));
 
   contents_wrapped = g_strdup_printf ("(progn %s)", contents);
   cl_eval (ecl_read_from_cstring (contents_wrapped));
-
   cl_eval (ecl_read_from_cstring ("(in-package \"CL-USER\")"));
 
   self->loaded = TRUE;
