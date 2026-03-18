@@ -42,9 +42,29 @@
         <property name=\"spacing\">6</property>
         <child>
           <object class=\"GtkLabel\">
+            <style>
+              <class name=\"subtitle\"/>
+            </style>
             <property name=\"halign\">start</property>
             <property name=\"hexpand\">true</property>
             <property name=\"ellipsize\">start</property>
+            <binding name=\"label\">
+              <lookup name=\"string\" type=\"GtkStringObject\">
+                <lookup name=\"obj1\" type=\"SaturnFsResult\">
+                  <lookup name=\"item\">SaturnFsResultListItem</lookup>
+                </lookup>
+              </lookup>
+            </binding>
+          </object>
+        </child>
+        <child>
+          <object class=\"GtkLabel\">
+            <style>
+              <class name=\"title-4\"/>
+            </style>
+            <property name=\"margin-end\">15</property>
+            <property name=\"halign\">end</property>
+            <property name=\"ellipsize\">middle</property>
             <binding name=\"label\">
               <lookup name=\"string\" type=\"GtkStringObject\">
                 <lookup name=\"obj0\" type=\"SaturnFsResult\">
@@ -129,35 +149,6 @@
 (defun select (provider item query)
   (format t "selected the file!~%")
   nil)
-
-(defun bind-list-item (provider item)
-  (let* ((path (g:object-data item "path"))
-         (start-label
-           (saturn:make-widget
-            'gtk:label
-            (:props (:label (uiop:unix-namestring
-                             (uiop:pathname-directory-pathname path))
-                     :xalign 0.0
-                     :ellipsize :start
-                     :hexpand t)
-             :styles ("subtitle"))))
-         (end-label
-           (saturn:make-widget
-            'gtk:label
-            (:props (:label (file-namestring path)
-                     :xalign 1.0
-                     :ellipsize :start
-                     :margin-end 25)
-             :styles ("title-4"))))
-         (box
-           (saturn:make-widget
-            'gtk:box
-            (:props (:orientation :horizontal
-                     :spacing 25))
-            (lambda (x)
-              (gtk:box-append x start-label)
-              (gtk:box-append x end-label)))))
-    box))
 
 (defun bind-preview (provider item)
   (let* ((label
