@@ -159,6 +159,9 @@ ensure_providers (SaturnApplication *self)
                    "name", "calc",
                    "script-uri", "resource:///io/github/kolunmi/Saturn/calc.lsp");
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
+                   "name", "emoji",
+                   "script-uri", "resource:///io/github/kolunmi/Saturn/emoji.lsp");
+  APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
                    "name", "fs",
                    "script-uri", "resource:///io/github/kolunmi/Saturn/fs.lsp");
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
