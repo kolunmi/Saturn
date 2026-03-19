@@ -160,7 +160,7 @@
 (defun score (provider item query)
   (let ((str (gtk:string-object-string query))
         (matched-lines (gtk:string-object-string (g:object-property item "obj1"))))
-    (* 1000 (count newline-char matched-lines))))
+    (* 100 (count newline-char matched-lines))))
 
 (defun select (provider item query)
   (format t "selected the file!~%")
