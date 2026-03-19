@@ -56,6 +56,9 @@
         <property name=\"spacing\">6</property>
         <child>
           <object class=\"GtkImage\">
+            <style>
+              <class name=\"dimmed\"/>
+            </style>
             <property name=\"icon-name\">folder-saved-search-symbolic</property>
             <property name=\"icon-size\">normal</property>
           </object>
