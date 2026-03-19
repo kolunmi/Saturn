@@ -165,6 +165,9 @@ ensure_providers (SaturnApplication *self)
                    "name", "color",
                    "script-uri", "resource:///io/github/kolunmi/Saturn/color.lsp");
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
+                   "name", "enchant",
+                   "script-uri", "resource:///io/github/kolunmi/Saturn/enchant.lsp");
+  APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
                    "name", "brew",
                    "script-uri", "resource:///io/github/kolunmi/Saturn/brew.lsp");
 
