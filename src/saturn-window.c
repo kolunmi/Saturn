@@ -119,6 +119,13 @@ saturn_window_set_property (GObject      *object,
     }
 }
 
+static gboolean
+not (gpointer object,
+     gboolean value)
+{
+  return !value;
+}
+
 static void
 text_changed_cb (SaturnWindow *self,
                  GtkEditable  *editable)
@@ -373,6 +380,7 @@ saturn_window_class_init (SaturnWindowClass *klass)
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, selection);
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, list_view);
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, preview_bin);
+  gtk_widget_class_bind_template_callback (widget_class, not);
   gtk_widget_class_bind_template_callback (widget_class, text_changed_cb);
   gtk_widget_class_bind_template_callback (widget_class, text_activated_cb);
   gtk_widget_class_bind_template_callback (widget_class, selection_changed_cb);

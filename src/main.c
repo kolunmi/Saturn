@@ -26,30 +26,18 @@
 
 #include "saturn-application.h"
 
-extern void init_lib_SPLIT_SEQUENCE (cl_object);
-extern void init_lib_CLOSER_MOP (cl_object);
-extern void init_lib_TRIVIAL_GARBAGE (cl_object);
-extern void init_lib_GLOBAL_VARS (cl_object);
-extern void init_lib_BORDEAUX_THREADS (cl_object);
-extern void init_lib_ITERATE (cl_object);
-extern void init_lib_BABEL (cl_object);
-extern void init_lib_ALEXANDRIA (cl_object);
-extern void init_lib_TRIVIAL_FEATURES (cl_object);
-extern void init_lib_CFFI (cl_object);
-extern void init_lib_CL_CFFI_GTK4 (cl_object);
-extern void init_lib_CL_CFFI_GTK4_INIT (cl_object);
-extern void init_lib_CL_CFFI_CAIRO (cl_object);
-extern void init_lib_CL_CFFI_GLIB (cl_object);
-extern void init_lib_CL_CFFI_GLIB_INIT (cl_object);
-extern void init_lib_CL_CFFI_PANGO (cl_object);
-extern void init_lib_CL_CFFI_GRAPHENE (cl_object);
-extern void init_lib_CL_CFFI_GDK_PIXBUF (cl_object);
+static void
+init_ecl_thread (SaturnApplication *app);
+
+static gboolean
+init_ecl_done_idle_cb (SaturnApplication *app);
 
 int
 main (int   argc,
       char *argv[])
 {
   g_autoptr (SaturnApplication) app = NULL;
+  g_autoptr (GThread) init_ecl      = NULL;
   int ret                           = 0;
 
   bindtextdomain (GETTEXT_PACKAGE, LOCALEDIR);
@@ -66,35 +54,39 @@ main (int   argc,
   ecl_set_option (ECL_OPT_SIGNAL_HANDLING_THREAD, 0);
   g_assert (cl_boot (argc, argv) != 0);
 
+  app      = saturn_application_new ("io.github.kolunmi.Saturn", G_APPLICATION_DEFAULT_FLAGS);
+  init_ecl = g_thread_new ("Init ECL", (GThreadFunc) init_ecl_thread, g_object_ref (app));
+  ret      = g_application_run (G_APPLICATION (app), argc, argv);
+
+  return ret;
+}
+
+extern void init_lib_SATURN_CL_DEPS (cl_object);
+
+static void
+init_ecl_thread (SaturnApplication *app)
+{
+  ecl_import_current_thread (ECL_NIL, ECL_NIL);
+
   cl_eval (ecl_read_from_cstring ("(require :asdf)"));
-  ecl_init_module (NULL, init_lib_ALEXANDRIA);
-  ecl_init_module (NULL, init_lib_SPLIT_SEQUENCE);
-  ecl_init_module (NULL, init_lib_CLOSER_MOP);
-  ecl_init_module (NULL, init_lib_TRIVIAL_GARBAGE);
-  ecl_init_module (NULL, init_lib_GLOBAL_VARS);
-  ecl_init_module (NULL, init_lib_BORDEAUX_THREADS);
-  ecl_init_module (NULL, init_lib_ITERATE);
-  ecl_init_module (NULL, init_lib_BABEL);
-  ecl_init_module (NULL, init_lib_TRIVIAL_FEATURES);
-  ecl_init_module (NULL, init_lib_CFFI);
-  ecl_init_module (NULL, init_lib_CL_CFFI_GLIB_INIT);
-  ecl_init_module (NULL, init_lib_CL_CFFI_GTK4_INIT);
-  ecl_init_module (NULL, init_lib_CL_CFFI_GLIB);
-  ecl_init_module (NULL, init_lib_CL_CFFI_CAIRO);
-  ecl_init_module (NULL, init_lib_CL_CFFI_PANGO);
-  ecl_init_module (NULL, init_lib_CL_CFFI_GRAPHENE);
-  ecl_init_module (NULL, init_lib_CL_CFFI_GDK_PIXBUF);
-
-  cl_eval (ecl_read_from_cstring ("(in-package \"CL-USER\")"));
-
   /* This is needed since apparently `init_lib_CL_CFFI_GTK4` references itself
      from inside */
   cl_eval (ecl_read_from_cstring ("(asdf:defsystem :cl-cffi-gtk4 :name \"cl-cffi-gtk4\" :version \"0.9.0\")"));
-  ecl_init_module (NULL, init_lib_CL_CFFI_GTK4);
+  ecl_init_module (NULL, init_lib_SATURN_CL_DEPS);
   cl_eval (ecl_read_from_cstring ("(in-package \"CL-USER\")"));
 
-  app = saturn_application_new ("io.github.kolunmi.Saturn", G_APPLICATION_DEFAULT_FLAGS);
-  ret = g_application_run (G_APPLICATION (app), argc, argv);
+  ecl_release_current_thread ();
 
-  return ret;
+  g_idle_add_full (
+      G_PRIORITY_DEFAULT,
+      (GSourceFunc) init_ecl_done_idle_cb,
+      app,
+      g_object_unref);
+}
+
+static gboolean
+init_ecl_done_idle_cb (SaturnApplication *app)
+{
+  g_object_set (app, "initializing", FALSE, NULL);
+  return G_SOURCE_REMOVE;
 }

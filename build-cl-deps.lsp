@@ -3,6 +3,7 @@
 (defvar deps
   '(
     (:saturn-cl-deps       "./"                     )
+    (:asdf                 "./"                     )
     (:split-sequence       "./split-sequence/"      )
     (:closer-mop           "./closer-mop/"          )
     (:trivial-garbage      "./trivial-garbage/"     )
@@ -40,11 +41,12 @@
             (let ((init-name
                     (concatenate 'string
                                  "init_lib_"
-                                 (substitute #\_ #\- (string (first x))))))
-              (asdf:make-build (first x)
+                                 (substitute #\_ #\- (string x)))))
+              (asdf:make-build x
                                :type :static-library
                                :move-here "./"
-                               :init-name init-name)))
-        deps)
+                               :init-name init-name
+                               :monolithic t)))
+        '(:saturn-cl-deps))
 
 (quit)

@@ -31,13 +31,62 @@ struct _SaturnApplication
 {
   AdwApplication parent_instance;
 
+  gboolean    initializing;
   GListStore *providers;
 };
 
 G_DEFINE_FINAL_TYPE (SaturnApplication, saturn_application, ADW_TYPE_APPLICATION)
 
+enum
+{
+  PROP_0,
+
+  PROP_INITIALIZING,
+
+  LAST_PROP
+};
+static GParamSpec *props[LAST_PROP] = { 0 };
+
 static void
 ensure_providers (SaturnApplication *self);
+
+static void
+saturn_application_get_property (GObject    *object,
+                                 guint       prop_id,
+                                 GValue     *value,
+                                 GParamSpec *pspec)
+{
+  SaturnApplication *self = SATURN_APPLICATION (object);
+
+  switch (prop_id)
+    {
+    case PROP_INITIALIZING:
+      g_value_set_boolean (value, self->initializing);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
+}
+
+static void
+saturn_application_set_property (GObject      *object,
+                                 guint         prop_id,
+                                 const GValue *value,
+                                 GParamSpec   *pspec)
+{
+  SaturnApplication *self = SATURN_APPLICATION (object);
+
+  switch (prop_id)
+    {
+    case PROP_INITIALIZING:
+      self->initializing = g_value_get_boolean (value);
+      if (!self->initializing)
+        ensure_providers (self);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
+}
 
 SaturnApplication *
 saturn_application_new (const char       *application_id,
@@ -49,6 +98,7 @@ saturn_application_new (const char       *application_id,
                        "application-id", application_id,
                        "flags", flags,
                        "resource-base-path", "/io/github/kolunmi/Saturn",
+                       "initializing", TRUE,
                        NULL);
 }
 
@@ -61,7 +111,6 @@ saturn_application_activate (GApplication *app)
   g_assert (SATURN_IS_APPLICATION (app));
 
   self = SATURN_APPLICATION (app);
-  ensure_providers (self);
 
   window = gtk_application_get_active_window (GTK_APPLICATION (app));
   if (window == NULL)
@@ -76,7 +125,19 @@ saturn_application_activate (GApplication *app)
 static void
 saturn_application_class_init (SaturnApplicationClass *klass)
 {
-  GApplicationClass *app_class = G_APPLICATION_CLASS (klass);
+  GObjectClass      *object_class = G_OBJECT_CLASS (klass);
+  GApplicationClass *app_class    = G_APPLICATION_CLASS (klass);
+
+  object_class->set_property = saturn_application_set_property;
+  object_class->get_property = saturn_application_get_property;
+
+  props[PROP_INITIALIZING] =
+      g_param_spec_boolean (
+          "initializing",
+          NULL, NULL, FALSE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  g_object_class_install_properties (object_class, LAST_PROP, props);
 
   app_class->activate = saturn_application_activate;
 }
@@ -125,6 +186,8 @@ static const GActionEntry app_actions[] = {
 static void
 saturn_application_init (SaturnApplication *self)
 {
+  self->providers = g_list_store_new (SATURN_TYPE_PROVIDER);
+
   g_action_map_add_action_entries (
       G_ACTION_MAP (self),
       app_actions,
@@ -141,9 +204,9 @@ ensure_providers (SaturnApplication *self)
 {
   guint n_providers = 0;
 
-  if (self->providers != NULL)
+  n_providers = g_list_model_get_n_items (G_LIST_MODEL (self->providers));
+  if (n_providers > 0)
     return;
-  self->providers = g_list_store_new (SATURN_TYPE_PROVIDER);
 
 #define APPEND_PROVIDER(...)                     \
   G_STMT_START                                   \
