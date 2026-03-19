@@ -7,6 +7,7 @@
     <file alias="fs.lsp">providers/lsp/default/fs.lsp</file>
     <file alias="color.lsp">providers/lsp/default/color.lsp</file>
     <file alias="calc.lsp">providers/lsp/default/calc.lsp</file>
+    <file alias="grep.lsp">providers/lsp/default/grep.lsp</file>
     <file alias="emoji.lsp">providers/lsp/default/emoji.lsp</file>
     <file alias="enchant.lsp">providers/lsp/default/enchant.lsp</file>
     <file alias="brew.lsp">providers/lsp/default/brew.lsp</file>
