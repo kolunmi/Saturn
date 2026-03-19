@@ -39,8 +39,9 @@ struct _SaturnWindow
 
   SaturnThreadsafeListStore *model;
 
-  guint    debounce;
-  gboolean explicit_selection;
+  guint debounce;
+  /* if less than 0, explicit selection is active */
+  int      explicit_selection;
   gpointer selected_item;
 
   /* Template widgets */
@@ -181,11 +182,18 @@ selection_changed_cb (SaturnWindow *self,
                       guint         added,
                       GListModel   *model)
 {
-  guint n_items = 0;
+  guint n_items  = 0;
+  guint selected = 0;
 
-  n_items = g_list_model_get_n_items (model);
-  if (n_items > 0 && !self->explicit_selection)
-    gtk_list_view_scroll_to (self->list_view, 0, GTK_LIST_SCROLL_NONE, NULL);
+  n_items  = g_list_model_get_n_items (model);
+  selected = gtk_single_selection_get_selected (GTK_SINGLE_SELECTION (model));
+  if (n_items > 0 &&
+      self->explicit_selection >= 0 &&
+      selected > 0)
+    {
+      self->explicit_selection++;
+      gtk_list_view_scroll_to (self->list_view, 0, GTK_LIST_SCROLL_SELECT, NULL);
+    }
 }
 
 static void
@@ -205,11 +213,8 @@ selected_item_changed_cb (SaturnWindow       *self,
                           GParamSpec         *pspec,
                           GtkSingleSelection *selection)
 {
-  guint n_items = 0;
-
-  n_items = g_list_model_get_n_items (G_LIST_MODEL (selection));
-  if (n_items > 1)
-    self->explicit_selection = TRUE;
+  if (self->explicit_selection >= 0)
+    self->explicit_selection--;
 }
 
 static void
@@ -420,7 +425,7 @@ start_query (SaturnWindow *self,
     saturn_threadsafe_list_store_cancel (self->model);
   g_clear_object (&self->model);
   gtk_single_selection_set_model (self->selection, NULL);
-  self->explicit_selection = FALSE;
+  self->explicit_selection = 1;
   if (search_object == NULL)
     return;
 
