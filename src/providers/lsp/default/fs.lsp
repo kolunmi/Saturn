@@ -142,9 +142,7 @@
 (defun score (provider item query)
   (let ((str (gtk:string-object-string query))
         (name (file-namestring (g:object-data item "path"))))
-    (round (/ 10000.0
-              (- (/ (length name) (length str))
-                 (/ (or (search str name) 0.0) (length name)))))))
+    (saturn:generic-str-score str name)))
 
 (defun select (provider item query)
   (format t "selected the file!~%")

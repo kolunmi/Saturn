@@ -141,7 +141,9 @@
   )
 
 (defun score (provider item query)
-  10000000000)
+  (let ((str (gtk:string-object-string query))
+        (suggestion (gtk:string-object-string (g:object-property item "obj0"))))
+    (saturn:generic-str-score str suggestion)))
 
 (defun select (provider item query)
   (let* ((suggestion (gtk:string-object-string

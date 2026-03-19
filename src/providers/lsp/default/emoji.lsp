@@ -4089,9 +4089,10 @@
 
   )
 
-
 (defun score (provider item query)
-  10000000000000)
+  (let ((str (gtk:string-object-string query))
+        (emoji-names (gtk:string-object-string (g:object-property item "obj1"))))
+    (saturn:generic-str-score str emoji-names)))
 
 (defun select (provider item query)
   (let* ((emoji (gtk:string-object-string

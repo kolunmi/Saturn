@@ -10,6 +10,12 @@
   (g:object-pointer obj))
 (export 'make-object-for-c)
 
+(defun generic-str-score (query match)
+  (round (/ 100000.0
+            (- (/ (length match) (length query))
+               (/ (or (search query match) 0.0) (length match))))))
+(export 'generic-str-score)
+
 (defmacro make-widget (type (&key props styles connect) &optional init-fn)
   `(let ((widget (make-instance ,type ,@props)))
      ,@(mapcar (lambda (class)

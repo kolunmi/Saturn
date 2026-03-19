@@ -156,7 +156,9 @@
   )
 
 (defun score (provider item query)
-  100000000)
+  (let ((str (gtk:string-object-string query))
+        (pkg-name (gtk:string-object-string (g:object-property item "obj0"))))
+    (saturn:generic-str-score str pkg-name)))
 
 (defun select (provider item query)
   (format t "selected the package!~%")
