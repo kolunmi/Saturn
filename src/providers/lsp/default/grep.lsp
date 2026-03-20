@@ -18,6 +18,9 @@
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 (defvar *min-query-length* 3)
+
+(defvar +highlight-rgba+ (gdk:rgba-parse "darkorange"))
+
 (defun make-grep-cmd (word)
   (list "flatpak-spawn"
         "--host"
@@ -108,8 +111,9 @@
     (when (not (= *timeout-source* 0))
       (g:source-remove *timeout-source*)
       (setf *timeout-source* 0))
-    (let* ((str (gtk:string-object-string object)))
-      (when (>= (length str) *min-query-length*)
+    (let* ((str (gtk:string-object-string object))
+           (strlen (length str)))
+      (when (>= strlen *min-query-length*)
         (setf *timeout-source*
               ;; debounce 0.5 seconds
               (g:timeout-add
@@ -129,51 +133,58 @@
                                   (current-matches nil))
                               (loop for line = (ignore-errors (read-line s nil nil))
                                     while line
-                                    do (progn
-                                         (if (uiop:emptyp line)
-                                             (progn
-                                               (when (and current-path
-                                                          current-matches)
-                                                 (unless (saturn:submit-result
-                                                          (make-instance
-                                                           'grep-result
-                                                           :obj0 (gtk:string-object-new current-path)
-                                                           :obj1 (gtk:string-object-new
-                                                                  (apply #'concatenate 'string
-                                                                   (mapcar #'(lambda (x)
-                                                                               (format nil "~A~%" x))
-                                                                           (reverse current-matches)))))
-                                                          store provider)
-                                                   (return-from root)))
-                                               (setf current-path nil
-                                                     current-matches nil))
-                                             (if current-path
-                                                 (push line current-matches)
-                                                 (setf current-path line))))))))))))
+                                    do (if (uiop:emptyp line)
+                                           (progn
+                                             (when (and current-path
+                                                        current-matches)
+                                               (unless (saturn:submit-result
+                                                        (make-instance
+                                                         'grep-result
+                                                         :obj0 (gtk:string-object-new current-path)
+                                                         :obj1 (let* ((buffer (make-instance 'gtk:text-buffer))
+                                                                      (cursor (gtk:text-buffer-start-iter buffer)))
+                                                                 (loop for line in (reverse current-matches)
+                                                                       for match-offset = (search str line)
+                                                                       when match-offset
+                                                                         do (let* ((start-seq (subseq line 0 match-offset))
+                                                                                   (tag-seq (subseq line match-offset (+ match-offset strlen)))
+                                                                                   (end-seq (format nil "~a~%" (subseq line (+ match-offset strlen))))
+                                                                                   (tag (gtk:text-buffer-create-tag buffer nil
+                                                                                                                    :background-rgba +highlight-rgba+)))
+                                                                              (gtk:text-iter-forward-to-end cursor)
+                                                                              (gtk:text-buffer-insert buffer cursor start-seq)
+                                                                              (gtk:text-iter-forward-to-end cursor)
+                                                                              (gtk:text-buffer-insert-with-tags buffer cursor tag-seq tag)
+                                                                              (gtk:text-iter-forward-to-end cursor)
+                                                                              (gtk:text-buffer-insert buffer cursor end-seq)))
+                                                                 buffer))
+                                                        store provider)
+                                                 (return-from root)))
+                                             (setf current-path nil
+                                                   current-matches nil))
+                                           (if current-path
+                                               (push line current-matches)
+                                               (setf current-path line)))))))))))
                  ;; don't run again
                  nil))))))
 
   )
 
-(defconstant newline-char #\
-  )
 (defun score (provider item query)
   (let ((str (gtk:string-object-string query))
-        (matched-lines (gtk:string-object-string (g:object-property item "obj1"))))
-    (* 100 (count newline-char matched-lines))))
+        (n-matched-lines (gtk:text-buffer-line-count (g:object-property item "obj1"))))
+    (* 100 n-matched-lines)))
 
 (defun select (provider item query)
   (format t "selected the file!~%")
   nil)
 
 (defun bind-preview (provider item)
-  (let* ((matched-lines
-           (gtk:string-object-string (g:object-property item "obj1")))
+  (let* ((buffer (g:object-property item "obj1"))
          (text-view
            (saturn:make-widget
                'gtk:text-view
-               (:props (:buffer (make-instance 'gtk:text-buffer
-                                               :text matched-lines)
+               (:props (:buffer buffer
                         :monospace t)
                 :styles ("monospace"))))
          (scrolled-window

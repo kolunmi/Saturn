@@ -130,14 +130,14 @@
         {
           "type" : "git",
           "url" : "https://github.com/kolunmi/cl-cffi-glib.git",
-          "commit" : "470f64982c8300702c08f2000270f88442c7f90d",
+          "commit" : "c781aa21650f388a4617972252902d0da1969d98",
           "tag" : "master",
           "dest" : "cl-cffi-glib"
         },
         {
           "type" : "git",
           "url" : "https://github.com/kolunmi/cl-cffi-gtk4.git",
-          "commit" : "8d8f4a59738a6dd0137d724974a1d60cb95d7b38",
+          "commit" : "fabe1c82341b227ffbb6c4d9ec681aaa337bcc06",
           "tag" : "master",
           "dest" : "cl-cffi-gtk4"
         },
