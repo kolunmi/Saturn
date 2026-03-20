@@ -18,9 +18,6 @@
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 (defvar *min-query-length* 2)
-(defun make-enchant-cmd (word)
-  (list "/bin/sh" "-c"
-        (concatenate 'string "echo \"" word "\" | enchant-2 -a")))
 
 (gobject:define-gobject-subclass
     "SaturnEnchantResult"
@@ -110,8 +107,11 @@
                250
                (lambda ()
                  (setf *timeout-source* 0)
-                 (let ((output (uiop:run-program (make-enchant-cmd str)
-                                                 :output :string)))
+                 (let ((output (with-input-from-string (s str)
+                                 (uiop:run-program '("enchant-2" "-a")
+                                                   ;; passing str as stdin
+                                                   :input s
+                                                   :output :string))))
                    (with-input-from-string (s output)
                      ;; discard line the first line, which looks like this:
                      ;; ```
