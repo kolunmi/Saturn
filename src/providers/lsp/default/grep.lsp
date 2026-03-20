@@ -75,7 +75,7 @@
           <object class=\"GtkLabel\">
             <property name=\"halign\">end</property>
             <property name=\"hexpand\">true</property>
-            <property name=\"ellipsize\">end</property>
+            <property name=\"ellipsize\">start</property>
             <binding name=\"label\">
               <lookup name=\"string\" type=\"GtkStringObject\">
                 <lookup name=\"obj0\" type=\"SaturnGrepResult\">

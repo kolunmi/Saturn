@@ -201,6 +201,7 @@ selection_changed_cb (SaturnWindow *self,
 {
   guint n_items  = 0;
   guint selected = 0;
+  char  buf[64]  = { 0 };
 
   n_items  = g_list_model_get_n_items (model);
   selected = gtk_single_selection_get_selected (GTK_SINGLE_SELECTION (model));
@@ -211,6 +212,9 @@ selection_changed_cb (SaturnWindow *self,
       self->explicit_selection++;
       gtk_list_view_scroll_to (self->list_view, 0, GTK_LIST_SCROLL_SELECT, NULL);
     }
+
+  g_snprintf (buf, sizeof (buf), "%u", n_items);
+  gtk_label_set_label (self->status_label, buf);
 }
 
 static void

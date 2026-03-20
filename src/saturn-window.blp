@@ -82,16 +82,19 @@ template $SaturnWindow: Adw.ApplicationWindow {
 
       start-child: Adw.ToolbarView {
         [top]
-        Adw.HeaderBar {
-          show-title: false;
+        Box {
+          margin-top: 15;
+          margin-bottom: 15;
+          margin-start: 15;
+          margin-end: 15;
 
-          [start]
+          orientation: horizontal;
+          spacing: 6;
+
           Image {
-            margin-start: 10;
             icon-name: "system-search-symbolic";
           }
 
-          [start]
           Text entry {
             styles [
               "main-entry",
@@ -104,15 +107,6 @@ template $SaturnWindow: Adw.ApplicationWindow {
             activate => $text_activated_cb(template);
           }
 
-          [end]
-          MenuButton {
-            primary: true;
-            icon-name: "open-menu-symbolic";
-            tooltip-text: _("Main Menu");
-            menu-model: primary_menu;
-          }
-
-          [end]
           Label status_label {
             styles [
               "heading",
@@ -162,8 +156,14 @@ template $SaturnWindow: Adw.ApplicationWindow {
           show-title: false;
           halign: fill;
           valign: start;
-          show-start-title-buttons: false;
-          show-end-title-buttons: false;
+
+          [end]
+          MenuButton {
+            primary: true;
+            icon-name: "open-menu-symbolic";
+            tooltip-text: _("Main Menu");
+            menu-model: primary_menu;
+          }
         }
 
         child: Adw.Bin preview_bin {
