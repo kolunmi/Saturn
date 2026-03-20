@@ -118,40 +118,47 @@
     (when (not (= *timeout-source* 0))
       (g:source-remove *timeout-source*)
       (setf *timeout-source* 0))
-    (let* ((str (gtk:string-object-string object)))
-      (when (>= (length str) *min-query-length*)
+    (let ((str (gtk:string-object-string object)))
+      (unless (>= (length str) *min-query-length*)
+        (return-from query))
+      (labels ((run-cmd ()
+                 (ignore-errors
+                  (uiop:run-program (append *brew-cmd*
+                                            (list "search"
+                                                  "--desc"
+                                                  str))
+                                    :output :string)))
+               (make-result (pkg-name pkg-desc)
+                 (make-instance 'brew-result
+                                :obj0 (gtk:string-object-new pkg-name)
+                                :obj1 (gtk:string-object-new pkg-desc)))
+               (process-line (line)
+                 (let* ((colon-idx (search ":" line)))
+                   (unless colon-idx
+                     (return-from process-line))
+                   (let ((pkg-name (subseq line 0 colon-idx))
+                         (pkg-desc (subseq line (1+ colon-idx))))
+                     (unless (and pkg-name pkg-desc)
+                       (return-from process-line))
+                     (let ((result (make-result pkg-name pkg-desc)))
+                       (saturn:submit-result result store provider)))))
+               (thread ()
+                 (let ((results (run-cmd)))
+                   (unless results
+                     (return-from thread))
+                   (with-input-from-string (s results)
+                     (loop for line = (read-line s nil nil)
+                           while line
+                           do (unless (process-line line)
+                                (return-from thread))))))
+               (idle-timeout ()
+                 (setf *timeout-source* 0)
+                 (bordeaux-threads:make-thread #'thread)
+                 ;; don't run again
+                 nil))
         (setf *timeout-source*
               ;; debounce 0.5 seconds
-              (g:timeout-add
-               500
-               (lambda ()
-                 (setf *timeout-source* 0)
-                 (bordeaux-threads:make-thread
-                  (lambda ()
-                    (block root
-                      (let ((results
-                              (ignore-errors
-                               (uiop:run-program (append *brew-cmd*
-                                                         (list "search"
-                                                               "--desc"
-                                                               str))
-                                                 :output :string))))
-                        (when results
-                          (with-input-from-string (s results)
-                            (loop for line = (read-line s nil nil)
-                                  while line
-                                  do (let* ((colon-idx (search ":" line)))
-                                       (when colon-idx
-                                         (let ((pkg-name (subseq line 0 colon-idx))
-                                               (pkg-desc (subseq line (1+ colon-idx))))
-                                           (when (and pkg-name pkg-desc)
-                                             (let ((result (make-instance 'brew-result
-                                                                          :obj0 (gtk:string-object-new pkg-name)
-                                                                          :obj1 (gtk:string-object-new pkg-desc))))
-                                               (unless (saturn:submit-result result store provider)
-                                                 (return-from root))))))))))))))
-                 ;; don't run again
-                 nil))))))
+              (g:timeout-add 500 #'idle-timeout)))))
 
   )
 

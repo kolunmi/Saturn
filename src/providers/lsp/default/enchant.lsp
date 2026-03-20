@@ -100,18 +100,32 @@
       (g:source-remove *timeout-source*)
       (setf *timeout-source* 0))
     (let* ((str (gtk:string-object-string object)))
-      (when (>= (length str) *min-query-length*)
-        (setf *timeout-source*
-              ;; debounce 0.25 seconds
-              (g:timeout-add
-               250
-               (lambda ()
+      (unless (>= (length str) *min-query-length*)
+        (return-from query))
+      (labels ((run-cmd ()
+                 (ignore-errors
+                  (with-input-from-string (s str)
+                    (uiop:run-program '("enchant-2" "-a")
+                                      ;; passing str as stdin
+                                      :input s
+                                      :output :string))))
+               (output-line-to-suggestions (line)
+                 (let ((colon-idx (search ":" line)))
+                   (unless colon-idx
+                     (return-from output-line-to-suggestions))
+                   (split-sequence:split-sequence-if
+                    (let ((split-next nil))
+                      (lambda (ch)
+                        (cond
+                          ((eql ch #\,) (setf split-next t))
+                          (split-next (progn (setf split-next nil) t)))))
+                    (subseq line (+ 2 colon-idx))
+                    :remove-empty-subseqs t)))
+               (idle-timeout ()
                  (setf *timeout-source* 0)
-                 (let ((output (with-input-from-string (s str)
-                                 (uiop:run-program '("enchant-2" "-a")
-                                                   ;; passing str as stdin
-                                                   :input s
-                                                   :output :string))))
+                 (let ((output (run-cmd)))
+                   (unless output
+                     (return-from idle-timeout))
                    (with-input-from-string (s output)
                      ;; discard line the first line, which looks like this:
                      ;; ```
@@ -119,24 +133,17 @@
                      ;; ```
                      (read-line s nil nil)
                      (let* ((line (read-line s nil nil))
-                            (colon-idx (search ":" line))
-                            (suggestions
-                              (when colon-idx
-                                (split-sequence:split-sequence-if
-                                 (let ((split-next nil))
-                                   (lambda (ch)
-                                     (cond
-                                       ((eql ch #\,) (setf split-next t))
-                                       (split-next (progn (setf split-next nil) t)))))
-                                 (subseq line (+ 2 colon-idx))
-                                 :remove-empty-subseqs t))))
+                            (suggestions (output-line-to-suggestions line)))
                        (loop for suggestion in suggestions
                              do (saturn:submit-result
                                  (make-instance 'enchant-result
                                                 :obj0 (gtk:string-object-new suggestion))
                                  store provider)))))
                  ;; don't run again
-                 nil))))))
+                 nil))
+      (setf *timeout-source*
+            ;; debounce 0.25 seconds
+            (g:timeout-add 250 #'idle-timeout)))))
 
   )
 

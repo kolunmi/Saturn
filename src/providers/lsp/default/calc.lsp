@@ -19,47 +19,52 @@
 
 (defun parse-tokens (str)
   (let ((skip 0))
-    (loop for ch across str
-          for idx from 0
-          unless (or (when (> skip 0)
-                       (decf skip))
-                     (member ch '(#\ )))
-            collect (cond
-                      ((equal ch #\+) #'+)
-                      ((equal ch #\-) #'-)
-                      ((equal ch #\*) #'*)
-                      ((equal ch #\/) #'/)
-                      ((equal ch #\%) #'mod)
-                      ((equal ch #\^) #'expt)
-                      ((digit-char-p ch)
-                       (parse-integer
-                        (concatenate
-                         'string
-                         (append (list ch)
-                                 (loop for scan from 0
-                                       for digit across (subseq str (1+ idx))
-                                       while (digit-char-p digit)
-                                       collect digit
-                                       finally (incf skip scan))))))
-                      ((equal ch #\()
-                       (let ((tokens (parse-tokens
-                                      (let* ((stack (list idx))
-                                             (matching-paren nil))
-                                        (loop for scan from 0
-                                              for subch across (subseq str (1+ idx))
-                                              while stack
-                                              when (member subch '(#\())
-                                                do (push (+ idx scan 1) stack)
-                                              when (member subch '(#\)))
-                                                do (pop stack)
-                                              finally (progn
-                                                        (setf matching-paren (+ idx scan))
-                                                        (incf skip scan)))
-                                        (subseq str (1+ idx) matching-paren)))))
-                         (unless tokens
-                           (error "malformed expression"))
-                         tokens))
-                      (t (error "invalid expression"))))))
+    (labels ((handle-digit (ch idx)
+               (parse-integer
+                (concatenate
+                 'string
+                 (append (list ch)
+                         (loop for scan from 0
+                               for digit across (subseq str (1+ idx))
+                               while (digit-char-p digit)
+                               collect digit
+                               finally (incf skip scan))))))
+             (recurse (ch idx)
+               (parse-tokens
+                (let* ((stack (list idx))
+                       (matching-paren nil))
+                  (loop for scan from 0
+                        for subch across (subseq str (1+ idx))
+                        while stack
+                        when (member subch '(#\())
+                          do (push (+ idx scan 1) stack)
+                        when (member subch '(#\)))
+                          do (pop stack)
+                        finally (progn
+                                  (setf matching-paren (+ idx scan))
+                                  (incf skip scan)))
+                  (subseq str (1+ idx) matching-paren))))
+             (handle-paren (ch idx)
+               (let ((tokens (recurse ch idx)))
+                 (unless tokens
+                   (error "malformed expression"))
+                 tokens)))
+      (loop for ch across str
+            for idx from 0
+            unless (or (when (> skip 0)
+                         (decf skip))
+                       (member ch '(#\ )))
+              collect
+              (cond
+                ((equal ch #\+) #'+)
+                ((equal ch #\-) #'-)
+                ((equal ch #\*) #'*)
+                ((equal ch #\/) #'/)
+                ((equal ch #\%) #'mod)
+                ((equal ch #\^) #'expt)
+                ((digit-char-p ch) (handle-digit ch idx))
+                ((equal ch #\() (handle-paren ch idx))
+                (t (error "invalid expression")))))))
 
 (defun calc-tokens (tokens)
   (if (= (length tokens) 1)
@@ -83,28 +88,29 @@
                 collect (list token (/ (1- idx) 2)) into l-operators
               finally (setf operators l-operators
                             numbers l-numbers))
-        (setf operators
-              (sort operators
-                    #'(lambda (&rest args)
-                        (apply #'> (mapcar
-                                    #'(lambda (x)
-                                        (let ((op (first x)))
-                                          (cond
-                                            ((equal op #'+) 1)
-                                            ((equal op #'-) 1)
-                                            ((equal op #'*) 2)
-                                            ((equal op #'/) 2)
-                                            ((equal op #'mod) 2)
-                                            ((equal op #'expt) 3)
-                                            (t 0))))
-                                    args)))))
+        (labels ((get-precedence (x)
+                   (let ((op (first x)))
+                     (cond
+                       ((equal op #'+) 1)
+                       ((equal op #'-) 1)
+                       ((equal op #'*) 2)
+                       ((equal op #'/) 2)
+                       ((equal op #'mod) 2)
+                       ((equal op #'expt) 3)
+                       (t 0))))
+                 (predicate (&rest args)
+                   (apply #'> (mapcar #'get-precedence args))))
+          (setf operators (sort operators #'predicate)))
         (loop for operator in operators
               do (destructuring-bind (op idx) operator
                    (labels ((test-num-b (a b) (numberp b))
                             (find-num-backwards (idx lis)
-                              (find t lis :test #'test-num-b :end (1+ idx) :from-end t))
+                              (find t lis :test #'test-num-b
+                                          :end (1+ idx)
+                                          :from-end t))
                             (find-num-forwards (idx lis)
-                              (find t lis :test #'test-num-b :start (1+ idx))))
+                              (find t lis :test #'test-num-b
+                                          :start (1+ idx))))
                      (let ((result (funcall op
                                             (find-num-backwards idx numbers)
                                             (find-num-forwards idx numbers))))

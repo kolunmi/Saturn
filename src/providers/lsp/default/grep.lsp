@@ -113,60 +113,69 @@
       (setf *timeout-source* 0))
     (let* ((str (gtk:string-object-string object))
            (strlen (length str)))
-      (when (>= strlen *min-query-length*)
+      (unless (>= strlen *min-query-length*)
+        (return-from query))
+      (labels ((run-cmd ()
+                 (ignore-errors
+                  (uiop:launch-program (make-grep-cmd str)
+                                       :output :stream)))
+               (populate-buffer-line (buffer cursor line match-offset)
+                 (let* ((start-seq (subseq line 0 match-offset))
+                        (tag-seq (subseq line match-offset (+ match-offset strlen)))
+                        (end-seq (format nil "~a~%" (subseq line (+ match-offset strlen))))
+                        (tag (gtk:text-buffer-create-tag buffer nil
+                                                         :background-rgba +highlight-rgba+)))
+                   (gtk:text-iter-forward-to-end cursor)
+                   (gtk:text-buffer-insert buffer cursor start-seq)
+                   (gtk:text-iter-forward-to-end cursor)
+                   (gtk:text-buffer-insert-with-tags buffer cursor tag-seq tag)
+                   (gtk:text-iter-forward-to-end cursor)
+                   (gtk:text-buffer-insert buffer cursor end-seq)))
+               (finish-result (line path matches)
+                 (saturn:submit-result
+                  (make-instance
+                   'grep-result
+                   :obj0 (gtk:string-object-new path)
+                   :obj1 (let* ((buffer (make-instance 'gtk:text-buffer))
+                                (cursor (gtk:text-buffer-start-iter buffer)))
+                           (loop for line in (reverse matches)
+                                 for match-offset = (search str line)
+                                 when match-offset
+                                   do (populate-buffer-line buffer
+                                                            cursor
+                                                            line
+                                                            match-offset))
+                           buffer))
+                  store provider))
+               (thread ()
+                 (let ((process (run-cmd)))
+                   (unless process
+                     (return-from thread))
+                   (with-open-stream (s (uiop:process-info-output process))
+                     (let ((current-path nil)
+                           (current-matches nil))
+                       (loop for line = (ignore-errors (read-line s nil nil))
+                             while line
+                             do (if (uiop:emptyp line)
+                                    (progn
+                                      (when (and current-path
+                                                 current-matches)
+                                        (finish-result line
+                                                       current-path
+                                                       current-matches))
+                                      (setf current-path nil
+                                            current-matches nil))
+                                    (if current-path
+                                        (push line current-matches)
+                                        (setf current-path line))))))))
+               (idle-timeout ()
+                 (setf *timeout-source* 0)
+                 (bordeaux-threads:make-thread #'thread)
+                 ;; don't run again
+                 nil))
         (setf *timeout-source*
               ;; debounce 0.5 seconds
-              (g:timeout-add
-               500
-               (lambda ()
-                 (setf *timeout-source* 0)
-                 (bordeaux-threads:make-thread
-                  (lambda ()
-                    (block root
-                      (let ((process
-                              (ignore-errors
-                               (uiop:launch-program (make-grep-cmd str)
-                                                    :output :stream))))
-                        (when process
-                          (with-open-stream (s (uiop:process-info-output process))
-                            (let ((current-path nil)
-                                  (current-matches nil))
-                              (loop for line = (ignore-errors (read-line s nil nil))
-                                    while line
-                                    do (if (uiop:emptyp line)
-                                           (progn
-                                             (when (and current-path
-                                                        current-matches)
-                                               (unless (saturn:submit-result
-                                                        (make-instance
-                                                         'grep-result
-                                                         :obj0 (gtk:string-object-new current-path)
-                                                         :obj1 (let* ((buffer (make-instance 'gtk:text-buffer))
-                                                                      (cursor (gtk:text-buffer-start-iter buffer)))
-                                                                 (loop for line in (reverse current-matches)
-                                                                       for match-offset = (search str line)
-                                                                       when match-offset
-                                                                         do (let* ((start-seq (subseq line 0 match-offset))
-                                                                                   (tag-seq (subseq line match-offset (+ match-offset strlen)))
-                                                                                   (end-seq (format nil "~a~%" (subseq line (+ match-offset strlen))))
-                                                                                   (tag (gtk:text-buffer-create-tag buffer nil
-                                                                                                                    :background-rgba +highlight-rgba+)))
-                                                                              (gtk:text-iter-forward-to-end cursor)
-                                                                              (gtk:text-buffer-insert buffer cursor start-seq)
-                                                                              (gtk:text-iter-forward-to-end cursor)
-                                                                              (gtk:text-buffer-insert-with-tags buffer cursor tag-seq tag)
-                                                                              (gtk:text-iter-forward-to-end cursor)
-                                                                              (gtk:text-buffer-insert buffer cursor end-seq)))
-                                                                 buffer))
-                                                        store provider)
-                                                 (return-from root)))
-                                             (setf current-path nil
-                                                   current-matches nil))
-                                           (if current-path
-                                               (push line current-matches)
-                                               (setf current-path line)))))))))))
-                 ;; don't run again
-                 nil))))))
+              (g:timeout-add 500 #'idle-timeout)))))
 
   )
 

@@ -119,22 +119,23 @@
 
   (defun query (provider object store)
     (let ((str (gtk:string-object-string object)))
-      (when (>= (length str) *min-query-length*)
-        (bordeaux-threads:make-thread
-         (lambda ()
-           (bordeaux-threads:with-lock-held (*work-lock*)
-             (block root
-               (loop for path across *files-array*
-                     when (search str (file-namestring path))
-                       do (let* ((name (file-namestring path))
-                                 (directory (uiop:unix-namestring (uiop:pathname-directory-pathname path)))
-                                 (result (make-instance 'fs-result
-                                                        :obj0 (gtk:string-object-new name)
-                                                        :obj1 (gtk:string-object-new directory))))
-                            ;; gobject properties weirdly don't work
-                            (setf (g:object-data result "path") path)
-                            (unless (saturn:submit-result result store provider)
-                              (return-from root)))))))))))
+      (unless (>= (length str) *min-query-length*)
+        (return-from query))
+      (bordeaux-threads:make-thread
+       (lambda ()
+         (bordeaux-threads:with-lock-held (*work-lock*)
+           (block root
+             (loop for path across *files-array*
+                   when (search str (file-namestring path))
+                     do (let* ((name (file-namestring path))
+                               (directory (uiop:unix-namestring (uiop:pathname-directory-pathname path)))
+                               (result (make-instance 'fs-result
+                                                      :obj0 (gtk:string-object-new name)
+                                                      :obj1 (gtk:string-object-new directory))))
+                          ;; gobject properties weirdly don't work
+                          (setf (g:object-data result "path") path)
+                          (unless (saturn:submit-result result store provider)
+                            (return-from root))))))))))
 
   )
 

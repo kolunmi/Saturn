@@ -19,6 +19,8 @@
 
 (defvar *min-query-length* 2)
 
+(defun code-seq-to-string (seq)
+  (concatenate 'string (mapcar #'code-char seq)))
 (defvar emojis
   '(((#x1F600)                                                    "grinning face")
     ((#x1F603)                                                    "grinning face with big eyes")
@@ -4061,31 +4063,30 @@
       (g:source-remove *timeout-source*)
       (setf *timeout-source* 0))
     (let* ((str (gtk:string-object-string object)))
-      (when (>= (length str) *min-query-length*)
+      (unless (>= (length str) *min-query-length*)
+        (return-from query))
+      (labels ((thread ()
+                 (let ((tokens (split-sequence:split-sequence #\  str :remove-empty-subseqs t)))
+                   (loop for emoji being the hash-keys of emojis-map
+                         for names being the hash-values of emojis-map
+                         do (unless (loop for token in tokens
+                                          unless (search token names)
+                                            return t)
+                              (unless (saturn:submit-result
+                                       (make-instance
+                                        'emoji-result
+                                        :obj0 (gtk:string-object-new (code-seq-to-string emoji))
+                                        :obj1 (gtk:string-object-new names))
+                                       store provider)
+                                (return-from thread))))))
+               (idle-timeout ()
+                 (setf *timeout-source* 0)
+                 (bordeaux-threads:make-thread #'thread)
+                 ;; don't run again
+                 nil))
         (setf *timeout-source*
               ;; debounce 0.05 seconds
-              (g:timeout-add
-               50
-               (lambda ()
-                 (setf *timeout-source* 0)
-                 (bordeaux-threads:make-thread
-                  (lambda ()
-                    (block root
-                      (let ((tokens (split-sequence:split-sequence #\  str :remove-empty-subseqs t)))
-                        (loop for emoji being the hash-keys of emojis-map
-                              for names being the hash-values of emojis-map
-                              do (unless (loop for token in tokens
-                                               unless (search token names)
-                                                 return t)
-                                   (unless (saturn:submit-result
-                                            (make-instance
-                                             'emoji-result
-                                             :obj0 (gtk:string-object-new (concatenate 'string (mapcar #'code-char emoji)))
-                                             :obj1 (gtk:string-object-new names))
-                                            store provider)
-                                     (return-from root))))))))
-                 ;; don't run again
-                 nil))))))
+              (g:timeout-add 50 #'idle-timeout)))))
 
   )
 
