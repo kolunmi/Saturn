@@ -37,6 +37,7 @@ struct _SaturnWindow
 
   GListModel *providers;
 
+  gboolean                   initializing;
   SaturnThreadsafeListStore *model;
 
   guint debounce;
@@ -58,6 +59,7 @@ enum
 {
   PROP_0,
 
+  PROP_INITIALIZING,
   PROP_PROVIDERS,
 
   LAST_PROP
@@ -93,6 +95,9 @@ saturn_window_get_property (GObject    *object,
 
   switch (prop_id)
     {
+    case PROP_INITIALIZING:
+      g_value_set_boolean (value, self->initializing);
+      break;
     case PROP_PROVIDERS:
       g_value_set_object (value, saturn_window_get_providers (self));
       break;
@@ -111,6 +116,11 @@ saturn_window_set_property (GObject      *object,
 
   switch (prop_id)
     {
+    case PROP_INITIALIZING:
+      self->initializing = g_value_get_boolean (value);
+      if (!self->initializing)
+        gtk_widget_grab_focus (GTK_WIDGET (self->entry));
+      break;
     case PROP_PROVIDERS:
       saturn_window_set_providers (self, g_value_get_object (value));
       break;
@@ -365,6 +375,12 @@ saturn_window_class_init (SaturnWindowClass *klass)
   object_class->get_property = saturn_window_get_property;
   object_class->set_property = saturn_window_set_property;
 
+  props[PROP_INITIALIZING] =
+      g_param_spec_boolean (
+          "initializing",
+          NULL, NULL, FALSE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
   props[PROP_PROVIDERS] =
       g_param_spec_object (
           "providers",
@@ -399,7 +415,6 @@ static void
 saturn_window_init (SaturnWindow *self)
 {
   gtk_widget_init_template (GTK_WIDGET (self));
-  gtk_widget_grab_focus (GTK_WIDGET (self->entry));
 }
 
 void

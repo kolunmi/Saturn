@@ -114,10 +114,16 @@ saturn_application_activate (GApplication *app)
 
   window = gtk_application_get_active_window (GTK_APPLICATION (app));
   if (window == NULL)
-    window = g_object_new (SATURN_TYPE_WINDOW,
-                           "application", app,
-                           "providers", self->providers,
-                           NULL);
+    {
+      window = g_object_new (SATURN_TYPE_WINDOW,
+                             "application", app,
+                             "providers", self->providers,
+                             NULL);
+      g_object_bind_property (
+          self, "initializing",
+          window, "initializing",
+          G_BINDING_SYNC_CREATE);
+    }
 
   gtk_window_present (window);
 }

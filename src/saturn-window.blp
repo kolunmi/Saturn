@@ -61,14 +61,14 @@ template $SaturnWindow: Adw.ApplicationWindow {
       styles [
         "accent",
       ]
-      visible: bind template.application as <$SaturnApplication>.initializing as <bool>;
+      visible: bind template.initializing as <bool>;
       hexpand: true;
       vexpand: true;
       halign: fill;
       valign: fill;
     }
     Paned {
-      visible: bind $not(template.application as <$SaturnApplication>.initializing as <bool>) as <bool>;
+      visible: bind $not(template.initializing as <bool>) as <bool>;
       hexpand: true;
       vexpand: true;
       halign: fill;
