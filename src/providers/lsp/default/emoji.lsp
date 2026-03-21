@@ -4106,6 +4106,12 @@
 (defun bind-preview (provider item)
   (let* ((emoji (gtk:string-object-string
                  (g:object-property item "obj0")))
+         (label
+           (saturn:make-widget 'gtk:label
+               (:props (:label emoji
+                        :halign :center
+                        :valign :center)
+                :styles ("beeg-text"))))
          (copy-button
            (saturn:make-widget 'gtk:button
                (:props (:label (concatenate 'string "Copy \"" emoji "\"")
@@ -4116,5 +4122,16 @@
                              (gdk:clipboard-set-text
                               (gdk:display-clipboard
                                (gdk:display-default))
-                              emoji))))))))
-    copy-button))
+                              emoji))))
+                :styles ("pill"))))
+         (box
+           (saturn:make-widget
+               'gtk:box
+               (:props (:orientation :vertical
+                        :spacing 10
+                        :valign :center
+                        :halign :center))
+               (lambda (x)
+                 (gtk:box-append x label)
+                 (gtk:box-append x copy-button)))))
+    box))
