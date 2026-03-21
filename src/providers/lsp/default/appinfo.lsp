@@ -204,7 +204,7 @@
           for icon-name = (app-info-icon-name info)
           when (and desktop-name
                     icon-name
-                    (search str desktop-name))
+                    (search str desktop-name :test #'char-equal))
             do (saturn:submit-result
                 (let ((result (make-instance 'appinfo-result
                                              :obj0 (gtk:string-object-new desktop-name)

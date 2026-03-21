@@ -126,7 +126,7 @@
          (bordeaux-threads:with-lock-held (*work-lock*)
            (block root
              (loop for path across *files-array*
-                   when (search str (file-namestring path))
+                   when (search str (file-namestring path) :test #'char-equal)
                      do (let* ((name (file-namestring path))
                                (directory (uiop:unix-namestring (uiop:pathname-directory-pathname path)))
                                (result (make-instance 'fs-result

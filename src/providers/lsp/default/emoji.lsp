@@ -4070,7 +4070,7 @@
                    (loop for emoji being the hash-keys of emojis-map
                          for names being the hash-values of emojis-map
                          do (unless (loop for token in tokens
-                                          unless (search token names)
+                                          unless (search token names :test #'char-equal)
                                             return t)
                               (unless (saturn:submit-result
                                        (make-instance
