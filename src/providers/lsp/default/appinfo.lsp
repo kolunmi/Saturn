@@ -17,15 +17,22 @@
 ;;
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
+(let ((icon-theme (gtk:icon-theme-for-display (gdk:display-default))))
+  (mapcar (lambda (path)
+            (gtk:icon-theme-add-search-path icon-theme path))
+          '("/var/lib/flatpak/exports/share/icons/"
+            "/run/host/share/icons/")))
+
 (defparameter *extra-data-dirs*
   (remove-duplicates
    (flet ((home-dir-path (subpath)
             (concatenate 'string
+                         "/run/host"
                          (uiop:unix-namestring (user-homedir-pathname))
                          subpath)))
      (mapcar #'merge-pathnames
-             (list "/var/lib/flatpak/exports/share"
-                   (home-dir-path ".local/share/flatpak/exports/share"))))
+             (list "/var/lib/flatpak/exports/share/"
+                   (home-dir-path ".local/share/flatpak/exports/share/"))))
    :test #'equal))
 
 (progn
@@ -59,6 +66,7 @@
   )
 
 (defstruct app-info
+  desktop-file
   desktop-name
   desktop-exec
   needs-terminal
@@ -73,7 +81,14 @@
                      collect file))
            (collect-desktop-files ()
              (let ((data-dirs (remove-duplicates
-                               (append (uiop:xdg-data-dirs) *extra-data-dirs*)
+                               (append (mapcar #'(lambda (x)
+                                                   (merge-pathnames
+                                                    (concatenate 'string
+                                                                 "/run/host"
+                                                                 (uiop:unix-namestring x)
+                                                                 "/")))
+                                               (uiop:xdg-data-dirs))
+                                       *extra-data-dirs*)
                                :test #'equal)))
                (apply #'append
                       (loop for data-dir in data-dirs
@@ -105,7 +120,8 @@
                       (g:key-file-string keyfile
                                          +desktop-group-key+
                                          +desktop-icon-key+)))
-               (make-app-info :desktop-name desktop-name
+               (make-app-info :desktop-file file
+                              :desktop-name desktop-name
                               :desktop-exec desktop-exec
                               :needs-terminal needs-terminal
                               :startup-notify startup-notify
@@ -201,10 +217,20 @@
   (let* ((str (gtk:string-object-string query))
          (info (g:object-data item "info"))
          (name (app-info-desktop-name info)))
-    (saturn:generic-str-score str name)))
+    (* 100 (saturn:generic-str-score str name))))
 
 (defun select (provider item query)
-  (format t "selected the appinfo!~%")
+  (let* ((info (g:object-data item "info"))
+         (desktop-file (uiop:unix-namestring (app-info-desktop-file info)))
+         (run-host (search "/run/host" desktop-file)))
+    (when (and run-host
+               (= run-host 0))
+      (setf desktop-file (subseq desktop-file (length "/run/host"))))
+    (uiop:run-program (list "flatpak-spawn"
+                            "--host"
+                            "gio"
+                            "launch"
+                            desktop-file)))
   nil)
 
 (defun bind-preview (provider item)
