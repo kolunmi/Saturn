@@ -1,0 +1,38 @@
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/*"
+      - "screenshots/*"
+      - ".github/ISSUE_TEMPLATE/**"
+
+name: CI Build Flatpak
+jobs:
+
+  flatpak:
+    name: "Flatpak"
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    strategy:
+      matrix:
+        variant:
+          - arch: x86_64
+            runner: ubuntu-latest
+          # no latest for ARM :(
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.variant.runner }}
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        submodules: recursive
+    - uses: flatpak/flatpak-github-actions/flatpak-builder@92ae9851ad316786193b1fd3f40c4b51eb5cb101 # v6.6
+      with:
+        bundle: Saturn.flatpak
+        manifest-path: io.github.kolunmi.Saturn.json
+        cache-key: flatpak-builder-4f1a3305
+        arch: ${{ matrix.variant.arch }}
+        verbose: true
