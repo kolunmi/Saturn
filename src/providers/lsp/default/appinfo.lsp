@@ -81,17 +81,19 @@
                    for extension = (pathname-type file)
                    when (equal extension "desktop")
                      collect file))
+           (make-data-dirs ()
+             (remove-duplicates
+              (append (mapcar #'(lambda (x)
+                                  (merge-pathnames
+                                   (concatenate 'string
+                                                "/run/host"
+                                                (uiop:unix-namestring x)
+                                                "/")))
+                              (uiop:xdg-data-dirs))
+                      *extra-data-dirs*)
+              :test #'equal))
            (collect-desktop-files ()
-             (let ((data-dirs (remove-duplicates
-                               (append (mapcar #'(lambda (x)
-                                                   (merge-pathnames
-                                                    (concatenate 'string
-                                                                 "/run/host"
-                                                                 (uiop:unix-namestring x)
-                                                                 "/")))
-                                               (uiop:xdg-data-dirs))
-                                       *extra-data-dirs*)
-                               :test #'equal)))
+             (let ((data-dirs (make-data-dirs)))
                (apply #'append
                       (loop for data-dir in data-dirs
                             for appsdir = (uiop:subpathname data-dir "applications/")
