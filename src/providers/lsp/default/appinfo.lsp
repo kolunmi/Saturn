@@ -59,6 +59,7 @@
   (defconstant +desktop-url-key+              "URL")
   (defconstant +desktop-dbus-activatable-key+ "DBusActivatable")
   (defconstant +desktop-actions-key+          "Actions")
+  (defconstant +desktop-keywords-key+         "Keywords")
 
   (defconstant +desktop-application-type+     "Application")
   (defconstant +desktop-link-type+            "Link")
@@ -69,6 +70,7 @@
   desktop-file
   desktop-name
   desktop-exec
+  keywords
   needs-terminal
   startup-notify
   icon-name)
@@ -108,6 +110,24 @@
                       (g:key-file-string keyfile
                                          +desktop-group-key+
                                          +desktop-exec-key+))
+                    (desktop-categories
+                      (g:key-file-string keyfile
+                                         +desktop-group-key+
+                                         +desktop-categories-key+))
+                    (desktop-categories-list
+                      (split-sequence:split-sequence #\;
+                                                     desktop-categories
+                                                     :remove-empty-subseqs t))
+                    (desktop-keywords
+                      (g:key-file-string keyfile
+                                         +desktop-group-key+
+                                         +desktop-keywords-key+))
+                    (desktop-keywords-list
+                      (split-sequence:split-sequence #\;
+                                                     desktop-keywords
+                                                     :remove-empty-subseqs t))
+                    (keywords-list (append desktop-categories-list
+                                           desktop-keywords-list))
                     (needs-terminal
                       (g:key-file-boolean keyfile
                                           +desktop-group-key+
@@ -123,6 +143,7 @@
                (make-app-info :desktop-file file
                               :desktop-name desktop-name
                               :desktop-exec desktop-exec
+                              :keywords keywords-list
                               :needs-terminal needs-terminal
                               :startup-notify startup-notify
                               :icon-name icon-name))))
@@ -198,13 +219,16 @@
 ;; PROVIDER IMPLEMENTATION
 
 (defun query (provider object store)
-  (let* ((str (gtk:string-object-string object)))
+  (let* ((str (gtk:string-object-string object))
+         (tokens (saturn:extract-tokens str)))
     (loop for info in *app-infos*
           for desktop-name = (app-info-desktop-name info)
+          for keywords = (append (list desktop-name)
+                                 (app-info-keywords info))
           for icon-name = (app-info-icon-name info)
           when (and desktop-name
                     icon-name
-                    (search str desktop-name :test #'char-equal))
+                    (saturn:match-str-tokens tokens keywords))
             do (saturn:submit-result
                 (let ((result (make-instance 'appinfo-result
                                              :obj0 (gtk:string-object-new desktop-name)

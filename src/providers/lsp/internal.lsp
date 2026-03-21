@@ -10,6 +10,19 @@
   (g:object-pointer obj))
 (export 'make-object-for-c)
 
+(defun extract-tokens (str)
+  (split-sequence:split-sequence #\  str
+                                 :remove-empty-subseqs t))
+(export 'extract-tokens)
+
+(defun match-str-tokens (query match-against)
+  (not (loop for q in query
+             unless (loop for a in match-against
+                          when (search q a :test #'char-equal)
+                            return t)
+               return t)))
+(export 'match-str-tokens)
+
 (defun generic-str-score (query match)
   (round (/ 100000.0
             (- (/ (length match) (length query))
