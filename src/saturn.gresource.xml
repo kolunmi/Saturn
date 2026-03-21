@@ -5,6 +5,7 @@
     <file preprocess="xml-stripblanks">saturn-window.ui</file>
     <file alias="internal.lsp">providers/lsp/internal.lsp</file>
     <file alias="fs.lsp">providers/lsp/default/fs.lsp</file>
+    <file alias="appinfo.lsp">providers/lsp/default/appinfo.lsp</file>
     <file alias="color.lsp">providers/lsp/default/color.lsp</file>
     <file alias="calc.lsp">providers/lsp/default/calc.lsp</file>
     <file alias="grep.lsp">providers/lsp/default/grep.lsp</file>
