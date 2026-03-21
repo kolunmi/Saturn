@@ -3969,10 +3969,16 @@
     )
   )
 
+(defstruct emoji-names
+  full
+  split)
+
 (defvar emojis-map (make-hash-table :test #'equal))
 (mapcar (lambda (x)
           (destructuring-bind (hexs names) x
-            (setf (gethash hexs emojis-map) names)))
+            (setf (gethash hexs emojis-map)
+                  (make-emoji-names :full names
+                                    :split (saturn:extract-tokens names)))))
         emojis)
 
 (gobject:define-gobject-subclass
@@ -4062,23 +4068,24 @@
     (when (not (= *timeout-source* 0))
       (g:source-remove *timeout-source*)
       (setf *timeout-source* 0))
-    (let* ((str (gtk:string-object-string object)))
+    (let* ((str (gtk:string-object-string object))
+           (tokens (saturn:extract-tokens str)))
       (unless (>= (length str) *min-query-length*)
         (return-from query))
       (labels ((thread ()
                  (let ((tokens (split-sequence:split-sequence #\  str :remove-empty-subseqs t)))
                    (loop for emoji being the hash-keys of emojis-map
                          for names being the hash-values of emojis-map
-                         do (unless (loop for token in tokens
-                                          unless (search token names :test #'char-equal)
-                                            return t)
-                              (unless (saturn:submit-result
+                         for full = (emoji-names-full names)
+                         for split = (emoji-names-split names)
+                         when (saturn:match-str-tokens tokens split)
+                           do (unless (saturn:submit-result
                                        (make-instance
                                         'emoji-result
                                         :obj0 (gtk:string-object-new (code-seq-to-string emoji))
-                                        :obj1 (gtk:string-object-new names))
+                                        :obj1 (gtk:string-object-new full))
                                        store provider)
-                                (return-from thread))))))
+                                (return-from thread)))))
                (idle-timeout ()
                  (setf *timeout-source* 0)
                  (bordeaux-threads:make-thread #'thread)
