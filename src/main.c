@@ -58,6 +58,10 @@ main (int   argc,
   init_ecl = g_thread_new ("Init ECL", (GThreadFunc) init_ecl_thread, g_object_ref (app));
   ret      = g_application_run (G_APPLICATION (app), argc, argv);
 
+  cl_eval (ecl_read_from_cstring ("(mapcar #'bordeaux-threads:destroy-thread "
+                                  "(remove (bordeaux-threads:current-thread) "
+                                  "(bordeaux-threads:all-threads)))"));
+  cl_shutdown ();
   return ret;
 }
 

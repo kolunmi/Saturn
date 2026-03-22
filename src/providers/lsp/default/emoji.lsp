@@ -4062,6 +4062,9 @@
 
 ;; PROVIDER IMPLEMENTATION
 
+(defun deinit-global ()
+  nil)
+
 (let ((*timeout-source* 0))
 
   (defun query (provider object store)
@@ -4103,12 +4106,12 @@
     (saturn:generic-str-score str emoji-names)))
 
 (defun select (provider item query)
-  (let* ((emoji (gtk:string-object-string
-                 (g:object-property item "obj0"))))
-    (gdk:clipboard-set-text
-     (gdk:display-clipboard
-      (gdk:display-default))
-     emoji)))
+  (let ((emoji (gtk:string-object-string (g:object-property item "obj0"))))
+    (gdk:clipboard-set-text (gdk:display-clipboard
+                             (gdk:display-default))
+                            emoji))
+  ;; exit saturn
+  t)
 
 (defun bind-preview (provider item)
   (let* ((emoji (gtk:string-object-string

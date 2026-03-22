@@ -129,6 +129,28 @@ saturn_application_activate (GApplication *app)
 }
 
 static void
+saturn_application_shutdown (GApplication *app)
+{
+  SaturnApplication *self        = NULL;
+  guint              n_providers = 0;
+
+  g_assert (SATURN_IS_APPLICATION (app));
+
+  self = SATURN_APPLICATION (app);
+
+  n_providers = g_list_model_get_n_items (G_LIST_MODEL (self->providers));
+  for (guint i = 0; i < n_providers; i++)
+    {
+      g_autoptr (SaturnProvider) provider = NULL;
+
+      provider = g_list_model_get_item (G_LIST_MODEL (self->providers), i);
+      saturn_provider_deinit_global (provider);
+    }
+
+  G_APPLICATION_CLASS (saturn_application_parent_class)->shutdown (app);
+}
+
+static void
 saturn_application_class_init (SaturnApplicationClass *klass)
 {
   GObjectClass      *object_class = G_OBJECT_CLASS (klass);
@@ -146,6 +168,7 @@ saturn_application_class_init (SaturnApplicationClass *klass)
   g_object_class_install_properties (object_class, LAST_PROP, props);
 
   app_class->activate = saturn_application_activate;
+  app_class->shutdown = saturn_application_shutdown;
 }
 
 static void

@@ -111,11 +111,14 @@
                            do (gather d))))))
       (gather path)))
 
-  (bordeaux-threads:make-thread
-   (lambda ()
-     (gather-files #P"~/")))
-
   ;; PROVIDER IMPLEMENTATION
+
+  (let ((*gather-thread* (bordeaux-threads:make-thread
+                          (lambda ()
+                            (gather-files #P"~/")))))
+    (defun deinit-global ()
+      (when (bordeaux-threads:thread-alive-p *gather-thread*)
+        (bordeaux-threads:destroy-thread *gather-thread*))))
 
   (defun query (provider object store)
     (let ((str (gtk:string-object-string object)))
@@ -146,8 +149,15 @@
     (saturn:generic-str-score str name)))
 
 (defun select (provider item query)
-  (format t "selected the file!~%")
-  nil)
+  (let* ((path (g:object-data item "path"))
+         (file (uiop:unix-namestring path)))
+    (ignore-errors
+     (uiop:run-program (list "flatpak-spawn"
+                             "--host"
+                             "xdg-open"
+                             file))))
+  ;; exit saturn
+  t)
 
 (defun bind-preview (provider item)
   (let* ((label

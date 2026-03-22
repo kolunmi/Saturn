@@ -105,6 +105,9 @@
 
 ;; PROVIDER IMPLEMENTATION
 
+(defun deinit-global ()
+  nil)
+
 (let ((*timeout-source* 0))
 
   (defun query (provider object store)
@@ -185,8 +188,15 @@
     (* 100 n-matched-lines)))
 
 (defun select (provider item query)
-  (format t "selected the file!~%")
-  nil)
+  ;; same as fs.lsp
+  (let* ((path (gtk:string-object-string (g:object-property item "obj0"))))
+    (ignore-errors
+     (uiop:run-program (list "flatpak-spawn"
+                             "--host"
+                             "xdg-open"
+                             path))))
+  ;; exit saturn
+  t)
 
 (defun bind-preview (provider item)
   (let* ((buffer (g:object-property item "obj1"))

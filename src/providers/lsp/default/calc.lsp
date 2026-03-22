@@ -132,6 +132,9 @@
 
 ;; PROVIDER IMPLEMENTATION
 
+(defun deinit-global ()
+  nil)
+
 (defun query (provider object store)
   (let* ((str (gtk:string-object-string object))
          (number (ignore-errors (evaluate str))))
@@ -145,8 +148,13 @@
   100000000000)
 
 (defun select (provider item query)
-  (format t "selected the calc result!~%")
-  nil)
+  (let* ((number (g:object-data result "number"))
+         (string-form (format nil "~a" number)))
+    (gdk:clipboard-set-text (gdk:display-clipboard
+                             (gdk:display-default))
+                            string-form))
+  ;; exit saturn
+  t)
 
 (defun bind-list-item (provider item)
   (let* ((number (g:object-data item "number"))

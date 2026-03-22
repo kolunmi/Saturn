@@ -38,6 +38,9 @@
 
 ;; PROVIDER IMPLEMENTATION
 
+(defun deinit-global ()
+  nil)
+
 (defun query (provider object store)
   (let* ((str (gtk:string-object-string object))
          (rgba (gdk:rgba-parse str)))
@@ -51,9 +54,13 @@
   10000000000)
 
 (defun select (provider item query)
-  (format t "selected the color!~%")
-  nil)
-
+  (let* ((rgba (g:object-data item "rgba"))
+         (hex (gdk:rgba-to-string rgba)))
+    (gdk:clipboard-set-text (gdk:display-clipboard
+                             (gdk:display-default))
+                            hex))
+  ;; exit saturn
+  t)
 
 (defun bind-list-item (provider item)
   (let* ((label

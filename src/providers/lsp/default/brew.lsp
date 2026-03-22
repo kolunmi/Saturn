@@ -112,6 +112,9 @@
 
 ;; PROVIDER IMPLEMENTATION
 
+(defun deinit-global ()
+  nil)
+
 (let ((*timeout-source* 0))
 
   (defun query (provider object store)

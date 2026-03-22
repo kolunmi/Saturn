@@ -237,6 +237,16 @@ provider_init_global (SaturnProvider *provider)
 }
 
 static void
+provider_deinit_global (SaturnProvider *provider)
+{
+  SaturnLspProvider *self     = SATURN_LSP_PROVIDER (provider);
+  char               fun[256] = { 0 };
+
+  g_snprintf (fun, sizeof (fun), "%s:deinit-global", self->name);
+  cl_eval (cl_list (1, ecl_read_from_cstring (fun)));
+}
+
+static void
 provider_query (SaturnProvider            *provider,
                 GObject                   *object,
                 SaturnThreadsafeListStore *store)
@@ -376,6 +386,7 @@ static void
 provider_iface_init (SaturnProviderInterface *iface)
 {
   iface->init_global    = provider_init_global;
+  iface->deinit_global  = provider_deinit_global;
   iface->query          = provider_query;
   iface->score          = provider_score;
   iface->select         = provider_select;
@@ -445,7 +456,7 @@ ensure_lisp (SaturnLspProvider *self)
 
   eval_before = g_strdup_printf ("(progn (defpackage :%s "
                                  "  (:use :cl) "
-                                 "  (:export :+list-bind-gtype+ :query :score :select :bind-list-item :bind-preview)) "
+                                 "  (:export :+list-bind-gtype+ :deinit-global :query :score :select :bind-list-item :bind-preview)) "
                                  "(in-package :%s))",
                                  self->name, self->name);
   cl_eval (ecl_read_from_cstring (eval_before));

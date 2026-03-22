@@ -232,6 +232,9 @@
 
 ;; PROVIDER IMPLEMENTATION
 
+(defun deinit-global ()
+  nil)
+
 (defun query (provider object store)
   (let* ((str (gtk:string-object-string object))
          (tokens (saturn:extract-tokens str)))
@@ -269,7 +272,8 @@
                             "gio"
                             "launch"
                             desktop-file)))
-  nil)
+  ;; exit saturn
+  t)
 
 (defun bind-preview (provider item)
   (let* ((info (g:object-data item "info"))

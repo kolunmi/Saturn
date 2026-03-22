@@ -93,6 +93,9 @@
 
 ;; PROVIDER IMPLEMENTATION
 
+(defun deinit-global ()
+  nil)
+
 (let ((*timeout-source* 0))
 
   (defun query (provider object store)
@@ -158,7 +161,9 @@
     (gdk:clipboard-set-text
      (gdk:display-clipboard
       (gdk:display-default))
-     suggestion)))
+     suggestion))
+  ;; exit saturn
+  t)
 
 (defun bind-preview (provider item)
   (let* ((suggestion (gtk:string-object-string
