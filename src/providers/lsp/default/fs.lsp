@@ -160,10 +160,32 @@
   t)
 
 (defun bind-preview (provider item)
-  (let* ((label
-           (saturn:make-widget 'gtk:label
-               (:props (:label (uiop:unix-namestring (g:object-data item "path"))
-                        :ellipsize :middle
-                        :hexpand t)
-                :styles ("monospace")))))
-    label))
+  (let* ((path (g:object-data item "path"))
+         (file (uiop:unix-namestring path))
+         (gfile (g:file-new-for-path file))
+         (info (g:file-query-info gfile "standard::content-type" :none))
+         (ctype (when info (g:file-info-content-type info)))
+         (preview
+           (cond
+             ((g:content-type-is-a ctype "text/*")
+              (let* ((text (uiop:read-file-string file))
+                     (buffer (make-instance 'gtk:text-buffer
+                                            :text text))
+                     (view (saturn:make-widget 'gtk:text-view
+                               (:props (:buffer buffer
+                                        :monospace t)
+                                :styles ("monospace")))))
+                (saturn:make-widget 'gtk:scrolled-window
+                    (:props (:child view)))))
+             ((g:content-type-is-a ctype "image/*")
+              (saturn:make-widget 'gtk:picture
+                  (:props (:file gfile))))
+             ((g:content-type-is-a ctype "video/*")
+              (saturn:make-widget 'gtk:video
+                  (:props (:file gfile))))
+             (t (saturn:make-widget 'gtk:label
+                    (:props (:label ctype
+                             :ellipsize :middle
+                             :hexpand t)
+                     :styles ("monospace")))))))
+    preview))
