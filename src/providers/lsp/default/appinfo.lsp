@@ -191,6 +191,9 @@
         </child>
         <child>
           <object class=\"GtkLabel\">
+            <style>
+              <class name=\"title-4\"/>
+            </style>
             <property name=\"halign\">start</property>
             <property name=\"hexpand\">true</property>
             <property name=\"ellipsize\">end</property>
@@ -201,6 +204,15 @@
                 </lookup>
               </lookup>
             </binding>
+          </object>
+        </child>
+        <child>
+          <object class=\"GtkLabel\">
+            <style>
+              <class name=\"subtitle\"/>
+            </style>
+            <property name=\"halign\">end</property>
+            <property name=\"label\">Application</property>
           </object>
         </child>
       </object>
