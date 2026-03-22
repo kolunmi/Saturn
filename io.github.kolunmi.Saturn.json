@@ -12,7 +12,8 @@
     "--filesystem=/var/lib/flatpak",
     "--filesystem=home",
     "--talk-name=org.freedesktop.Flatpak",
-    "--socket=wayland"
+    "--socket=wayland",
+    "--socket=pulseaudio"
   ],
   "cleanup" : [
     "/include",

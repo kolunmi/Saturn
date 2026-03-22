@@ -177,6 +177,28 @@
                                 :styles ("monospace")))))
                 (saturn:make-widget 'gtk:scrolled-window
                     (:props (:child view)))))
+             ((g:content-type-is-a ctype "audio/*")
+              (let* ((media (gtk:media-file-new-for-file gfile)))
+                (setf (gtk:media-stream-loop media) t)
+                (saturn:make-widget 'gtk:toggle-button
+                    (:props (:icon-name "media-playback-start-symbolic"
+                             :valign :center
+                             :halign :center)
+                     :connect (("toggled"
+                                (lambda (self)
+                                  (let ((active (gtk:toggle-button-active self)))
+                                    (setf (gtk:button-icon-name self)
+                                          (if active
+                                              "media-playback-pause-symbolic"
+                                              "media-playback-start-symbolic")))))
+                               ("unmap"
+                                (lambda (self)
+                                  (setf (gtk:media-stream-playing media) nil))))
+                     :styles ("pill"))
+                    (lambda (x)
+                      (g:object-bind-property media "playing"
+                                              x "active"
+                                              '(:bidirectional :sync-create))))))
              ((g:content-type-is-a ctype "image/*")
               (saturn:make-widget 'gtk:picture
                   (:props (:file gfile))))
