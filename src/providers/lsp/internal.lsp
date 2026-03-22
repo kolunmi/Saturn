@@ -43,6 +43,18 @@
      widget))
 (export 'make-widget)
 
+(defun copy-to-clipboard (str)
+  (gdk:clipboard-set-text (gdk:display-clipboard
+                           (gdk:display-default))
+                          str)
+  ;; do this as well in case there are issues with the window closing after the
+  ;; clipboard was modified with gdk
+  (ignore-errors
+   (uiop:run-program (list "flatpak-spawn"
+                           "--host"
+                           "wl-copy"
+                           str))))
+(export 'copy-to-clipboard)
 
 (gobject:define-gobject
     "SaturnGenericResult"

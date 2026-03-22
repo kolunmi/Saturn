@@ -171,8 +171,10 @@
     (round (/ (saturn:generic-str-score str pkg-name) 10))))
 
 (defun select (provider item query)
-  (format t "selected the package!~%")
-  nil)
+  (let ((pkg-name (gtk:string-object-string
+                   (g:object-property item "obj0"))))
+    (saturn:copy-to-clipboard pkg-name))
+  t)
 
 (defun bind-preview (provider item)
   (let* ((pkg-name (gtk:string-object-string (g:object-property item "obj0")))

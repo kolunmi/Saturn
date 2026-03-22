@@ -56,9 +56,7 @@
 (defun select (provider item query)
   (let* ((rgba (g:object-data item "rgba"))
          (hex (gdk:rgba-to-string rgba)))
-    (gdk:clipboard-set-text (gdk:display-clipboard
-                             (gdk:display-default))
-                            hex))
+    (saturn:copy-to-clipboard hex))
   ;; exit saturn
   t)
 
@@ -92,9 +90,7 @@
                 :styles ("osd")
                 :connect (("clicked"
                            (lambda (self)
-                             (gdk:clipboard-set-text (gdk:display-clipboard
-                                                      (gdk:display-default))
-                                                     hex)))))))
+                             (saturn:copy-to-clipboard hex)))))))
          (overlay
            (saturn:make-widget 'gtk:overlay
                (:props (:child color))

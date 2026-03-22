@@ -148,11 +148,9 @@
   100000000000)
 
 (defun select (provider item query)
-  (let* ((number (g:object-data result "number"))
+  (let* ((number (g:object-data item "number"))
          (string-form (format nil "~a" number)))
-    (gdk:clipboard-set-text (gdk:display-clipboard
-                             (gdk:display-default))
-                            string-form))
+    (saturn:copy-to-clipboard string-form))
   ;; exit saturn
   t)
 

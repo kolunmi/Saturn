@@ -158,10 +158,7 @@
 (defun select (provider item query)
   (let* ((suggestion (gtk:string-object-string
                       (g:object-property item "obj0"))))
-    (gdk:clipboard-set-text
-     (gdk:display-clipboard
-      (gdk:display-default))
-     suggestion))
+    (saturn:copy-to-clipboard suggestion))
   ;; exit saturn
   t)
 
