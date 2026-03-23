@@ -165,7 +165,11 @@
          (gfile (g:file-new-for-path file))
          (info (g:file-query-info gfile "standard::content-type" :none)))
     (unless info
-      (return-from bind-preview))
+      (return-from bind-preview
+        (saturn:make-widget 'gtk:label
+            (:props (:label "Failed To Read File"
+                     :ellipsize :middle
+                     :hexpand t)))))
     (let* ((ctype (g:file-info-content-type info))
            (preview
              (cond
