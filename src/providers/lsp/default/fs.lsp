@@ -163,51 +163,45 @@
   (let* ((path (g:object-data item "path"))
          (file (uiop:unix-namestring path))
          (gfile (g:file-new-for-path file))
-         (info (g:file-query-info gfile "standard::content-type" :none))
-         (ctype (when info (g:file-info-content-type info)))
-         (preview
-           (cond
-             ((g:content-type-is-a ctype "text/*")
-              (let* ((text (uiop:read-file-string file))
-                     (buffer (make-instance 'gtk:text-buffer
-                                            :text text))
-                     (view (saturn:make-widget 'gtk:text-view
-                               (:props (:buffer buffer
-                                        :monospace t)
-                                :styles ("monospace")))))
-                (saturn:make-widget 'gtk:scrolled-window
-                    (:props (:child view)))))
-             ((g:content-type-is-a ctype "audio/*")
-              (let* ((media (gtk:media-file-new-for-file gfile)))
-                (setf (gtk:media-stream-loop media) t)
-                (saturn:make-widget 'gtk:toggle-button
-                    (:props (:icon-name "media-playback-start-symbolic"
-                             :valign :center
-                             :halign :center)
-                     :connect (("toggled"
-                                (lambda (self)
-                                  (let ((active (gtk:toggle-button-active self)))
-                                    (setf (gtk:button-icon-name self)
-                                          (if active
-                                              "media-playback-pause-symbolic"
-                                              "media-playback-start-symbolic")))))
-                               ("unmap"
-                                (lambda (self)
-                                  (setf (gtk:media-stream-playing media) nil))))
-                     :styles ("pill"))
-                    (lambda (x)
-                      (g:object-bind-property media "playing"
-                                              x "active"
-                                              '(:bidirectional :sync-create))))))
-             ((g:content-type-is-a ctype "image/*")
-              (saturn:make-widget 'gtk:picture
-                  (:props (:file gfile))))
-             ((g:content-type-is-a ctype "video/*")
-              (saturn:make-widget 'gtk:video
-                  (:props (:file gfile))))
-             (t (saturn:make-widget 'gtk:label
-                    (:props (:label ctype
-                             :ellipsize :middle
-                             :hexpand t)
-                     :styles ("monospace")))))))
-    preview))
+         (info (g:file-query-info gfile "standard::content-type" :none)))
+    (unless info
+      (return-from bind-preview))
+    (let* ((ctype (g:file-info-content-type info))
+           (preview
+             (cond
+               ((g:content-type-is-a ctype "text/*")
+                (saturn:make-source-view gfile info))
+               ((g:content-type-is-a ctype "image/*")
+                (saturn:make-widget 'gtk:picture
+                    (:props (:file gfile))))
+               ((g:content-type-is-a ctype "video/*")
+                (saturn:make-widget 'gtk:video
+                    (:props (:file gfile))))
+               ((g:content-type-is-a ctype "audio/*")
+                (let* ((media (gtk:media-file-new-for-file gfile)))
+                  (setf (gtk:media-stream-loop media) t)
+                  (saturn:make-widget 'gtk:toggle-button
+                      (:props (:icon-name "media-playback-start-symbolic"
+                               :valign :center
+                               :halign :center)
+                       :connect (("toggled"
+                                  (lambda (self)
+                                    (let ((active (gtk:toggle-button-active self)))
+                                      (setf (gtk:button-icon-name self)
+                                            (if active
+                                                "media-playback-pause-symbolic"
+                                                "media-playback-start-symbolic")))))
+                                 ("unmap"
+                                  (lambda (self)
+                                    (setf (gtk:media-stream-playing media) nil))))
+                       :styles ("pill"))
+                      (lambda (x)
+                        (g:object-bind-property media "playing"
+                                                x "active"
+                                                '(:bidirectional :sync-create))))))
+               (t (saturn:make-widget 'gtk:label
+                      (:props (:label ctype
+                               :ellipsize :middle
+                               :hexpand t)
+                       :styles ("monospace")))))))
+      preview)))

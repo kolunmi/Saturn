@@ -24,6 +24,7 @@
 #include <glib/gi18n.h>
 
 #include <ecl/ecl.h>
+#include <gtksourceview/gtksource.h>
 
 #include "provider.h"
 #include "saturn-generic-result.h"
@@ -70,6 +71,14 @@ cl_to_gobject (cl_object object);
 
 static void
 ensure_lisp (SaturnLspProvider *self);
+
+/* source view access stuff */
+static void
+dark_changed (GtkSourceBuffer *buffer,
+              GParamSpec      *pspec,
+              AdwStyleManager *mgr);
+static void
+source_view_check_dark_mode (GtkSourceBuffer *buffer);
 
 static void
 saturn_lsp_provider_dispose (GObject *object)
@@ -191,6 +200,72 @@ cl_submit_result (cl_object cl_result,
   return ecl_make_bool (saturn_threadsafe_list_store_append (store, result));
 }
 
+static cl_object
+cl_make_source_view (cl_object cl_gfile,
+                     cl_object cl_gfile_info)
+{
+  g_autoptr (GError) local_error     = NULL;
+  GFile             *file            = NULL;
+  GFileInfo         *info            = NULL;
+  g_autofree char   *path            = NULL;
+  const char        *content_type    = NULL;
+  GtkSourceLanguage *language        = NULL;
+  g_autoptr (GtkSourceBuffer) buffer = NULL;
+  g_autofree char *contents          = NULL;
+  gsize            contents_length   = 0;
+  GtkWidget       *view              = NULL;
+  GtkWidget       *window            = NULL;
+
+  file = cl_to_gobject (cl_gfile);
+  info = cl_to_gobject (cl_gfile_info);
+
+  path         = g_file_get_path (file);
+  content_type = g_file_info_get_content_type (info);
+
+  language = gtk_source_language_manager_guess_language (
+      gtk_source_language_manager_get_default (),
+      path,
+      content_type);
+
+  if (language != NULL)
+    buffer = gtk_source_buffer_new_with_language (language);
+  else
+    buffer = gtk_source_buffer_new (NULL);
+
+  source_view_check_dark_mode (buffer);
+  g_signal_connect_object (
+      adw_style_manager_get_default (),
+      "notify::dark",
+      G_CALLBACK (dark_changed),
+      buffer,
+      G_CONNECT_SWAPPED);
+
+  g_file_load_contents (
+      file, NULL,
+      &contents, &contents_length,
+      NULL, &local_error);
+  if (contents != NULL)
+    gtk_text_buffer_set_text (
+        GTK_TEXT_BUFFER (buffer),
+        contents, contents_length);
+  else
+    {
+      g_warning ("Unable to load file contents for %s: %s",
+                 path, local_error->message);
+      g_clear_error (&local_error);
+    }
+
+  view = gtk_source_view_new_with_buffer (buffer);
+  gtk_text_view_set_editable (GTK_TEXT_VIEW (view), FALSE);
+  gtk_text_view_set_monospace (GTK_TEXT_VIEW (view), TRUE);
+  gtk_widget_add_css_class (view, "text-preview");
+
+  window = gtk_scrolled_window_new ();
+  gtk_scrolled_window_set_child (GTK_SCROLLED_WINDOW (window), view);
+
+  return gobject_to_cl (window);
+}
+
 static void
 provider_init_global (SaturnProvider *provider)
 {
@@ -218,6 +293,7 @@ provider_init_global (SaturnProvider *provider)
   G_STMT_END
 
   DEFUN ("submit-result", cl_submit_result, 3);
+  DEFUN ("make-source-view", cl_make_source_view, 2);
 
 #undef DEFUN
 
@@ -466,4 +542,35 @@ ensure_lisp (SaturnLspProvider *self)
   cl_eval (ecl_read_from_cstring ("(in-package \"CL-USER\")"));
 
   self->loaded = TRUE;
+}
+
+static void
+dark_changed (GtkSourceBuffer *buffer,
+              GParamSpec      *pspec,
+              AdwStyleManager *mgr)
+{
+  source_view_check_dark_mode (buffer);
+}
+
+static void
+source_view_check_dark_mode (GtkSourceBuffer *buffer)
+{
+  gboolean              is_dark;
+  const char           *id     = NULL;
+  GtkSourceStyleScheme *scheme = NULL;
+
+  is_dark = adw_style_manager_get_dark (
+      adw_style_manager_get_default ());
+  if (is_dark)
+    id = "Adwaita-dark";
+  else
+    id = "Adwaita";
+
+  scheme = gtk_source_style_scheme_manager_get_scheme (
+      gtk_source_style_scheme_manager_get_default (),
+      id);
+  if (scheme != NULL)
+    gtk_source_buffer_set_style_scheme (buffer, scheme);
+  else
+    gtk_source_buffer_set_highlight_syntax (buffer, FALSE);
 }
