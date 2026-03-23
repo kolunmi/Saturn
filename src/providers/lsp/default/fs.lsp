@@ -175,12 +175,24 @@
              (cond
                ((g:content-type-is-a ctype "text/*")
                 (saturn:make-source-view gfile info))
+               ((equal ctype "image/gif")
+                (let ((media (gtk:media-file-new-for-file gfile)))
+                  (setf (gtk:media-stream-loop media) t)
+                  (setf (gtk:media-stream-playing media) t)
+                  (saturn:make-widget 'gtk:video
+                      (:props (:media-stream media
+                               :graphics-offload :enabled)
+                       :connect (("unmap"
+                                  (lambda (self)
+                                    (setf (gtk:media-stream-playing media) nil)
+                                    (gtk:media-file-clear media))))))))
                ((g:content-type-is-a ctype "image/*")
                 (saturn:make-widget 'gtk:picture
                     (:props (:file gfile))))
                ((g:content-type-is-a ctype "video/*")
                 (saturn:make-widget 'gtk:video
-                    (:props (:file gfile))))
+                    (:props (:file gfile
+                             :graphics-offload :enabled))))
                ((g:content-type-is-a ctype "audio/*")
                 (let* ((media (gtk:media-file-new-for-file gfile)))
                   (setf (gtk:media-stream-loop media) t)
@@ -197,7 +209,8 @@
                                                 "media-playback-start-symbolic")))))
                                  ("unmap"
                                   (lambda (self)
-                                    (setf (gtk:media-stream-playing media) nil))))
+                                    (setf (gtk:media-stream-playing media) nil)
+                                    (gtk:media-file-clear media))))
                        :styles ("pill"))
                       (lambda (x)
                         (g:object-bind-property media "playing"
