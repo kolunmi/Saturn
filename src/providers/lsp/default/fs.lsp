@@ -121,7 +121,8 @@
         (bordeaux-threads:destroy-thread *gather-thread*))))
 
   (defun query (provider object store)
-    (let ((str (gtk:string-object-string object)))
+    (let* ((str (gtk:string-object-string object))
+           (tokens (saturn:extract-tokens str)))
       (unless (>= (length str) *min-query-length*)
         (return-from query))
       (bordeaux-threads:make-thread
@@ -129,7 +130,9 @@
          (bordeaux-threads:with-lock-held (*work-lock*)
            (block root
              (loop for path across *files-array*
-                   when (search str (file-namestring path) :test #'char-equal)
+                   for namestring = (file-namestring path)
+                   for split = (saturn:extract-tokens namestring)
+                   when (saturn:match-str-tokens tokens split)
                      do (let* ((name (file-namestring path))
                                (directory (uiop:unix-namestring (uiop:pathname-directory-pathname path)))
                                (result (make-instance 'fs-result
