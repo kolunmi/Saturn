@@ -56,6 +56,19 @@
                            str))))
 (export 'copy-to-clipboard)
 
+(defun flatpak-spawn-host-bin-exists (bin)
+  (handler-case
+      (uiop:run-program
+       (list "flatpak-spawn"
+             "--host"
+             "which"
+             bin))
+    (uiop:subprocess-error (e)
+      nil)
+    (:no-error (output error-output exit-code)
+      (= exit-code 0))))
+(export 'flatpak-spawn-host-bin-exists)
+
 (gobject:define-gobject
     "SaturnGenericResult"
     generic-result
