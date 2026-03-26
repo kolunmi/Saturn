@@ -19,7 +19,18 @@
 
 (defvar *min-query-length* 3)
 
-(defvar +highlight-rgba+ (gdk:rgba-parse "darkorange"))
+(defvar +highlight-rgbas+
+  (mapcar #'(lambda (spec)
+              (gdk:rgba-parse spec))
+          '("#3584e4aa"
+            "#2190a4aa"
+            "#3a944aaa"
+            "#c88800aa"
+            "#ed5b00aa"
+            "#e62d42aa"
+            "#d56199aa"
+            "#9141acaa"
+            "#6f8396aa")))
 
 (defvar *possible-rg-bins*
   '("rg"
@@ -126,12 +137,12 @@
                        when (saturn:flatpak-spawn-host-bin-exists bin)
                          return (uiop:launch-program (make-grep-cmd bin str)
                                                      :output :stream)))
-               (populate-buffer-line (buffer cursor line match-offset)
+               (populate-buffer-line (buffer cursor line match-offset match-color)
                  (let* ((start-seq (subseq line 0 match-offset))
                         (tag-seq (subseq line match-offset (+ match-offset strlen)))
                         (end-seq (format nil "~a~%" (subseq line (+ match-offset strlen))))
                         (tag (gtk:text-buffer-create-tag buffer nil
-                                                         :background-rgba +highlight-rgba+)))
+                                                         :background-rgba match-color)))
                    (gtk:text-iter-forward-to-end cursor)
                    (gtk:text-buffer-insert buffer cursor start-seq)
                    (gtk:text-iter-forward-to-end cursor)
@@ -147,11 +158,16 @@
                                 (cursor (gtk:text-buffer-start-iter buffer)))
                            (loop for line in (reverse matches)
                                  for match-offset = (search str line)
+                                 for idx from 0
+                                 for match-color = (nth (mod idx
+                                                             (length +highlight-rgbas+))
+                                                        +highlight-rgbas+)
                                  when match-offset
                                    do (populate-buffer-line buffer
                                                             cursor
                                                             line
-                                                            match-offset))
+                                                            match-offset
+                                                            match-color))
                            buffer))
                   store provider))
                (thread ()
