@@ -209,7 +209,7 @@
                'gtk:text-view
                (:props (:buffer buffer
                         :monospace t)
-                :styles ("monospace"))))
+                :styles ("text-preview"))))
          (scrolled-window
            (saturn:make-widget
                'gtk:scrolled-window
