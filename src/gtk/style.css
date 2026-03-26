@@ -24,7 +24,7 @@
 
 .text-preview {
     font-family: monospace;
-    font-size: medium;
+    font-size: large;
 }
 
 .invisible {
@@ -35,6 +35,11 @@
 
 .beeg-text {
     font-size: 16em;
+}
+
+.overlay-card {
+    box-shadow: 0 0 2px 1px rgba(0,0,6, 0.333);
+    border-radius: 8px;
 }
 
 .saturn-mono {

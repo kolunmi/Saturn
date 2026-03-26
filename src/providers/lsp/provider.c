@@ -266,6 +266,101 @@ cl_make_source_view (cl_object cl_gfile,
   return gobject_to_cl (window);
 }
 
+static cl_object
+cl_make_lisp_buffer_view (void)
+{
+  GtkSourceLanguage *language         = NULL;
+  g_autoptr (GtkSourceBuffer) buffer  = NULL;
+  GtkWidget *view                     = NULL;
+  g_autoptr (GtkIMContext) im_context = NULL;
+  g_autoptr (GtkEventController) key  = NULL;
+  GtkWidget *command_bar_label        = NULL;
+  GtkWidget *command_text             = NULL;
+  GtkWidget *bar                      = NULL;
+  GtkWidget *overlay                  = NULL;
+  GtkWidget *window                   = NULL;
+
+  language = gtk_source_language_manager_get_language (
+      gtk_source_language_manager_get_default (),
+      "commonlisp");
+  if (language != NULL)
+    buffer = gtk_source_buffer_new_with_language (language);
+  else
+    buffer = gtk_source_buffer_new (NULL);
+
+  source_view_check_dark_mode (buffer);
+  g_signal_connect_object (
+      adw_style_manager_get_default (),
+      "notify::dark",
+      G_CALLBACK (dark_changed),
+      buffer,
+      G_CONNECT_SWAPPED);
+
+  view = gtk_source_view_new_with_buffer (buffer);
+  gtk_text_view_set_editable (GTK_TEXT_VIEW (view), TRUE);
+  gtk_text_view_set_monospace (GTK_TEXT_VIEW (view), TRUE);
+  gtk_widget_add_css_class (view, "text-preview");
+
+  key        = gtk_event_controller_key_new ();
+  im_context = gtk_source_vim_im_context_new ();
+
+  gtk_event_controller_key_set_im_context (GTK_EVENT_CONTROLLER_KEY (key), im_context);
+  gtk_event_controller_set_propagation_phase (key, GTK_PHASE_CAPTURE);
+  gtk_widget_add_controller (view, g_steal_pointer (&key));
+  gtk_im_context_set_client_widget (im_context, view);
+
+  command_bar_label = gtk_label_new (NULL);
+  gtk_widget_add_css_class (command_bar_label, "accent");
+  gtk_widget_set_margin_start (command_bar_label, 5);
+  gtk_widget_set_margin_end (command_bar_label, 5);
+  gtk_widget_set_margin_top (command_bar_label, 5);
+  gtk_widget_set_margin_bottom (command_bar_label, 5);
+  g_object_bind_property (
+      im_context, "command-bar-text",
+      command_bar_label, "label",
+      G_BINDING_SYNC_CREATE);
+
+  command_text = gtk_label_new (NULL);
+  gtk_widget_add_css_class (command_text, "monospace");
+  gtk_widget_set_margin_start (command_text, 5);
+  gtk_widget_set_margin_end (command_text, 5);
+  gtk_widget_set_margin_top (command_text, 5);
+  gtk_widget_set_margin_bottom (command_text, 5);
+  g_object_bind_property (
+      im_context, "command-text",
+      command_text, "label",
+      G_BINDING_SYNC_CREATE);
+
+  bar = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
+  gtk_widget_add_css_class (bar, "overlay-card");
+  gtk_widget_add_css_class (bar, "background");
+  gtk_widget_set_margin_start (bar, 10);
+  gtk_widget_set_margin_end (bar, 10);
+  gtk_widget_set_margin_top (bar, 10);
+  gtk_widget_set_margin_bottom (bar, 10);
+  gtk_widget_set_halign (bar, GTK_ALIGN_FILL);
+  gtk_widget_set_valign (bar, GTK_ALIGN_END);
+  gtk_box_append (GTK_BOX (bar), command_text);
+  gtk_box_append (GTK_BOX (bar), command_bar_label);
+  g_object_bind_property (
+      view, "editable",
+      bar, "visible",
+      G_BINDING_SYNC_CREATE);
+
+  window = gtk_scrolled_window_new ();
+  gtk_scrolled_window_set_child (GTK_SCROLLED_WINDOW (window), view);
+
+  overlay = gtk_overlay_new ();
+  gtk_overlay_set_child (GTK_OVERLAY (overlay), window);
+  gtk_overlay_add_overlay (GTK_OVERLAY (overlay), bar);
+
+  return cl_values (
+      3,
+      gobject_to_cl (overlay),
+      gobject_to_cl (view),
+      gobject_to_cl (window));
+}
+
 static void
 provider_init_global (SaturnProvider *provider)
 {
@@ -294,6 +389,7 @@ provider_init_global (SaturnProvider *provider)
 
   DEFUN ("submit-result", cl_submit_result, 3);
   DEFUN ("make-source-view", cl_make_source_view, 2);
+  DEFUN ("make-lisp-buffer-view", cl_make_lisp_buffer_view, 0);
 
 #undef DEFUN
 

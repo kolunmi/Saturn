@@ -1,9 +1,11 @@
 (require :asdf)
+;; (require :slynk)
 
 (defvar deps
   '(
     (:saturn-cl-deps       "./"                     )
-    (:asdf                 "./"                     )
+    (:asdf                 nil                      )
+    ;; (:slynk                nil                      )
     (:split-sequence       "./split-sequence/"      )
     (:closer-mop           "./closer-mop/"          )
     (:trivial-garbage      "./trivial-garbage/"     )
@@ -26,8 +28,10 @@
 
 
 (mapcar #'(lambda (x)
-            (push (merge-pathnames (second x))
-                  asdf:*central-registry*))
+            (destructuring-bind (pkg path) x
+              (when path
+                (push (merge-pathnames path)
+                      asdf:*central-registry*))))
         deps)
 
 (asdf:load-system :cffi)

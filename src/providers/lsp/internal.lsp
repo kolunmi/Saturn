@@ -29,7 +29,28 @@
                (/ (or (search query match :test #'char-equal) 0.0) (length match))))))
 (export 'generic-str-score)
 
-(defmacro make-widget (type (&key props styles connect) &optional init-fn)
+(defmacro add-shortcuts (controller specs)
+  `(progn
+     ,@(loop for spec in specs
+             collect (destructuring-bind (accel cb) spec
+                       `(let* ((trigger (gtk:shortcut-trigger-parse-string ,accel))
+                               (action (gtk:callback-action-new ,cb))
+                               (shortcut (make-instance 'gtk:shortcut
+                                                        :trigger trigger
+                                                        :action action)))
+                          (gtk:shortcut-controller-add-shortcut ,controller
+                                                                shortcut))))))
+(export 'add-shortcuts)
+
+(defmacro add-shortcut-controller (widget specs)
+  `(let ((controller (gtk:shortcut-controller-new)))
+     (add-shortcuts controller ,specs)
+     (gtk:widget-add-controller ,widget controller)))
+(export 'add-shortcut-controller)
+
+(defmacro make-widget (type
+                       (&key props styles connect shortcuts)
+                       &optional init-fn)
   `(let ((widget (make-instance ,type ,@props)))
      ,@(mapcar (lambda (class)
                  `(gtk:widget-add-css-class widget ,class))
@@ -38,6 +59,8 @@
                  (destructuring-bind (name cb) spec
                    `(g:signal-connect widget ,name ,cb)))
                connect)
+     ,(when shortcuts
+        `(add-shortcut-controller widget ,shortcuts))
      ,(when init-fn
         `(funcall ,init-fn widget))
      widget))
@@ -87,7 +110,6 @@
      (obj3
       generic-result-obj3
       "obj3" "GObject" t t)))
-(setf (g:symbol-for-gtype (g:gtype "SaturnGenericResult")) 'generic-result)
 
 (gobject:define-gobject
     "SaturnSignalWidget"
@@ -98,4 +120,11 @@
     ((child
       signal-widget-child
       "child" "GtkWidget" t t)))
-(setf (g:symbol-for-gtype (g:gtype "SaturnSignalWidget")) 'signal-widget)
+
+(gobject:define-gobject
+    "GtkSourceView"
+    source-view
+    (:superclass gtk:text-view
+     :export t
+     :interfaces ())
+    nil)
