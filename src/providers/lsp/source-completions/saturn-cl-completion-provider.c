@@ -335,11 +335,13 @@ completion_provider_display (GtkSourceCompletionProvider *provider,
   GtkSourceCompletionColumn      column      = 0;
   SaturnClCompletionProposalKind kind        = 0;
   const char                    *string      = 0;
+  GListModel                    *lambda_args = NULL;
 
   (void) self;
 
-  kind   = saturn_cl_completion_proposal_get_kind (cl_proposal);
-  string = saturn_cl_completion_proposal_get_string (cl_proposal);
+  kind        = saturn_cl_completion_proposal_get_kind (cl_proposal);
+  string      = saturn_cl_completion_proposal_get_string (cl_proposal);
+  lambda_args = saturn_cl_completion_proposal_get_lambda_args (cl_proposal);
 
   column = gtk_source_completion_cell_get_column (cell);
   switch (column)
@@ -360,11 +362,44 @@ completion_provider_display (GtkSourceCompletionProvider *provider,
       }
       break;
     case GTK_SOURCE_COMPLETION_COLUMN_TYPED_TEXT:
-      gtk_source_completion_cell_set_text (cell, NULL);
+      gtk_source_completion_cell_set_text (cell, string);
+      gtk_widget_set_margin_end (GTK_WIDGET (cell), 10);
+      gtk_widget_add_css_class (GTK_WIDGET (cell), "monospace");
       break;
     case GTK_SOURCE_COMPLETION_COLUMN_AFTER:
-      gtk_source_completion_cell_set_text (cell, string);
-      gtk_widget_add_css_class (GTK_WIDGET (cell), "monospace");
+      {
+        if (lambda_args != NULL)
+          {
+            g_autoptr (GString) args_string = NULL;
+            guint      n_args               = 0;
+            GtkWidget *label                = NULL;
+
+            args_string = g_string_new (NULL);
+
+            n_args = g_list_model_get_n_items (lambda_args);
+            for (guint i = 0; i < n_args; i++)
+              {
+                g_autoptr (GtkStringObject) obj = NULL;
+                const char *str                 = NULL;
+
+                obj = g_list_model_get_item (lambda_args, i);
+                if (!GTK_IS_STRING_OBJECT (obj))
+                  continue;
+
+                str = gtk_string_object_get_string (obj);
+                g_string_append_printf (args_string, "%s ", str);
+              }
+            gtk_source_completion_cell_set_text (cell, args_string->str);
+
+            label = gtk_label_new (args_string->str);
+            gtk_label_set_ellipsize (GTK_LABEL (label), PANGO_ELLIPSIZE_MIDDLE);
+
+            gtk_source_completion_cell_set_widget (cell, label);
+            gtk_widget_add_css_class (GTK_WIDGET (cell), "dimmed");
+          }
+        else
+          gtk_source_completion_cell_set_text (cell, NULL);
+      }
       break;
     case GTK_SOURCE_COMPLETION_COLUMN_COMMENT:
       gtk_source_completion_cell_set_text (cell, NULL);

@@ -18,7 +18,10 @@
       "kind" "SaturnClCompletionProposalKind" t t)
      (string
       completion-proposal-string
-      "string" "gchararray" t t)))
+      "string" "gchararray" t t)
+     (lambda-args
+      completion-proposal-lambda-args
+      "lambda-args" "GListModel" t t)))
 
 (defun package-completion-buffer (&rest pkgs)
   (let ((completions (g:list-store-new "GObject")))
@@ -33,10 +36,22 @@
                           (t :normal)))
                       (symbol-string
                         (string-downcase (string s)))
+                      (symbol-args
+                        (when (eql symbol-kind :function)
+                          (let ((fn (ignore-errors (symbol-function s))))
+                            (when (functionp fn)
+                              (let* ((args (si:function-lambda-list fn))
+                                     (store (g:list-store-new "GObject")))
+                                (loop for arg in args
+                                      for str-rep = (format nil "~a" arg)
+                                      for str-obj = (gtk:string-object-new str-rep)
+                                      do (g:list-store-append store str-obj))
+                                store)))))
                       (proposal
                         (make-instance 'completion-proposal
                                        :kind symbol-kind
-                                       :string symbol-string)))
+                                       :string symbol-string
+                                       :lambda-args symbol-args)))
                  (g:list-store-append completions proposal))))
     completions))
 (export 'package-completion-buffer)

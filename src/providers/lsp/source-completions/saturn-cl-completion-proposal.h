@@ -46,6 +46,9 @@ saturn_cl_completion_proposal_get_kind (SaturnClCompletionProposal *self);
 const char *
 saturn_cl_completion_proposal_get_string (SaturnClCompletionProposal *self);
 
+GListModel *
+saturn_cl_completion_proposal_get_lambda_args (SaturnClCompletionProposal *self);
+
 void
 saturn_cl_completion_proposal_set_kind (SaturnClCompletionProposal    *self,
                                         SaturnClCompletionProposalKind kind);
@@ -59,6 +62,10 @@ saturn_cl_completion_proposal_set_string_take (SaturnClCompletionProposal *self,
                                                char                       *string);
 
 #define saturn_cl_completion_proposal_set_string_take_printf(self, ...) saturn_cl_completion_proposal_set_string_take (self, g_strdup_printf (__VA_ARGS__))
+
+void
+saturn_cl_completion_proposal_set_lambda_args (SaturnClCompletionProposal *self,
+                                               GListModel                 *lambda_args);
 
 G_END_DECLS
 

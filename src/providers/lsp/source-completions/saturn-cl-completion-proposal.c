@@ -34,6 +34,7 @@ struct _SaturnClCompletionProposal
 
   SaturnClCompletionProposalKind kind;
   char                          *string;
+  GListModel                    *lambda_args;
 };
 
 static void
@@ -52,6 +53,7 @@ enum
 
   PROP_KIND,
   PROP_STRING,
+  PROP_LAMBDA_ARGS,
 
   LAST_PROP
 };
@@ -63,6 +65,7 @@ saturn_cl_completion_proposal_dispose (GObject *object)
   SaturnClCompletionProposal *self = SATURN_CL_COMPLETION_PROPOSAL (object);
 
   g_clear_pointer (&self->string, g_free);
+  g_clear_object (&self->lambda_args);
 
   G_OBJECT_CLASS (saturn_cl_completion_proposal_parent_class)->dispose (object);
 }
@@ -82,6 +85,9 @@ saturn_cl_completion_proposal_get_property (GObject    *object,
       break;
     case PROP_STRING:
       g_value_set_string (value, saturn_cl_completion_proposal_get_string (self));
+      break;
+    case PROP_LAMBDA_ARGS:
+      g_value_set_object (value, saturn_cl_completion_proposal_get_lambda_args (self));
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -103,6 +109,9 @@ saturn_cl_completion_proposal_set_property (GObject      *object,
       break;
     case PROP_STRING:
       saturn_cl_completion_proposal_set_string (self, g_value_get_string (value));
+      break;
+    case PROP_LAMBDA_ARGS:
+      saturn_cl_completion_proposal_set_lambda_args (self, g_value_get_object (value));
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -129,6 +138,13 @@ saturn_cl_completion_proposal_class_init (SaturnClCompletionProposalClass *klass
       g_param_spec_string (
           "string",
           NULL, NULL, NULL,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
+
+  props[PROP_LAMBDA_ARGS] =
+      g_param_spec_object (
+          "lambda-args",
+          NULL, NULL,
+          G_TYPE_LIST_MODEL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
 
   g_object_class_install_properties (object_class, LAST_PROP, props);
@@ -169,6 +185,13 @@ saturn_cl_completion_proposal_get_string (SaturnClCompletionProposal *self)
 {
   g_return_val_if_fail (SATURN_IS_CL_COMPLETION_PROPOSAL (self), NULL);
   return self->string;
+}
+
+GListModel *
+saturn_cl_completion_proposal_get_lambda_args (SaturnClCompletionProposal *self)
+{
+  g_return_val_if_fail (SATURN_IS_CL_COMPLETION_PROPOSAL (self), NULL);
+  return self->lambda_args;
 }
 
 void
@@ -218,6 +241,22 @@ saturn_cl_completion_proposal_set_string_take (SaturnClCompletionProposal *self,
     self->string = string;
 
   g_object_notify_by_pspec (G_OBJECT (self), props[PROP_STRING]);
+}
+
+void
+saturn_cl_completion_proposal_set_lambda_args (SaturnClCompletionProposal *self,
+                                               GListModel                 *lambda_args)
+{
+  g_return_if_fail (SATURN_IS_CL_COMPLETION_PROPOSAL (self));
+
+  if (lambda_args == self->lambda_args)
+    return;
+
+  g_clear_pointer (&self->lambda_args, g_object_unref);
+  if (lambda_args != NULL)
+    self->lambda_args = g_object_ref (lambda_args);
+
+  g_object_notify_by_pspec (G_OBJECT (self), props[PROP_LAMBDA_ARGS]);
 }
 
 /* End of saturn-cl-completion-proposal.c */
