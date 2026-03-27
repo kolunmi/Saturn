@@ -1,3 +1,56 @@
+(gobject:define-genum
+    "SaturnClCompletionProposalKind"
+    completion-proposal-kind
+    (:export nil)
+  (:normal 0)
+  (:package 1)
+  (:function 2)
+  (:macro 3))
+
+(gobject:define-gobject
+    "SaturnClCompletionProposal"
+    completion-proposal
+    (:superclass g:object
+     :export nil
+     :interfaces ())
+    ((kind
+      completion-proposal-kind
+      "kind" "SaturnClCompletionProposalKind" t t)
+     (string
+      completion-proposal-string
+      "string" "gchararray" t t)))
+
+(defun package-completion-buffer (&rest pkgs)
+  (let ((completions (g:list-store-new "GObject")))
+    (loop for pkg in pkgs
+          for prefix = (string-downcase (package-name pkg))
+          do (do-symbols (s pkg)
+               (let* ((symbol-kind
+                        (cond
+                          ((find-package s) :package)
+                          ((macro-function s) :macro)
+                          ((fboundp s) :function)
+                          (t :normal)))
+                      (symbol-string
+                        (string-downcase (string s)))
+                      (proposal
+                        (make-instance 'completion-proposal
+                                       :kind symbol-kind
+                                       :string symbol-string)))
+                 (g:list-store-append completions proposal))))
+    completions))
+(export 'package-completion-buffer)
+
+(defun package-completion-buffer-async (text-view &rest pkgs)
+  (bordeaux-threads:make-thread
+   (lambda ()
+     (let ((model (apply #'package-completion-buffer pkgs)))
+       (g:idle-add
+        (lambda ()
+          (finish-source-view-completions model text-view)
+          nil))))))
+(export 'package-completion-buffer-async)
+
 (defun make-object-for-lisp (ptr)
   (make-instance (let ((gtype (g:symbol-for-gtype
                                (g:gtype-name

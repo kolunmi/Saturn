@@ -3,3 +3,4 @@ saturn_sources += files(
   'saturn-generic-result.c',
   'saturn-signal-widget.c',
 )
+subdir('source-completions')

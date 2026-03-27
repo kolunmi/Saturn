@@ -31,6 +31,8 @@
 #include "saturn-provider.h"
 #include "saturn-signal-widget.h"
 #include "saturn-threadsafe-list-store.h"
+#include "source-completions/saturn-cl-completion-proposal.h"
+#include "source-completions/saturn-cl-completion-provider.h"
 
 struct _SaturnLspProvider
 {
@@ -79,6 +81,10 @@ dark_changed (GtkSourceBuffer *buffer,
               AdwStyleManager *mgr);
 static void
 source_view_check_dark_mode (GtkSourceBuffer *buffer);
+
+static void
+source_buffer_changed (GtkSourceBuffer     *buffer,
+                       GtkSourceCompletion *completion);
 
 static void
 saturn_lsp_provider_dispose (GObject *object)
@@ -170,6 +176,8 @@ saturn_lsp_provider_class_init (SaturnLspProviderClass *klass)
 
   g_type_ensure (SATURN_TYPE_GENERIC_RESULT);
   g_type_ensure (SATURN_TYPE_SIGNAL_WIDGET);
+  g_type_ensure (SATURN_TYPE_CL_COMPLETION_PROPOSAL);
+  g_type_ensure (SATURN_TYPE_CL_COMPLETION_PROVIDER);
 }
 
 static void
@@ -271,7 +279,8 @@ cl_make_lisp_buffer_view (void)
 {
   GtkSourceLanguage *language         = NULL;
   g_autoptr (GtkSourceBuffer) buffer  = NULL;
-  GtkWidget *view                     = NULL;
+  GtkWidget           *view           = NULL;
+  GtkSourceCompletion *completion     = NULL;
   g_autoptr (GtkIMContext) im_context = NULL;
   g_autoptr (GtkEventController) key  = NULL;
   GtkWidget *command_bar_label        = NULL;
@@ -300,14 +309,31 @@ cl_make_lisp_buffer_view (void)
   gtk_text_view_set_editable (GTK_TEXT_VIEW (view), TRUE);
   gtk_text_view_set_monospace (GTK_TEXT_VIEW (view), TRUE);
   gtk_widget_add_css_class (view, "text-preview");
+  gtk_source_view_set_auto_indent (GTK_SOURCE_VIEW (view), TRUE);
+  gtk_source_view_set_highlight_current_line (GTK_SOURCE_VIEW (view), TRUE);
+  gtk_source_view_set_show_line_numbers (GTK_SOURCE_VIEW (view), TRUE);
+  gtk_source_view_set_insert_spaces_instead_of_tabs (GTK_SOURCE_VIEW (view), TRUE);
 
-  key        = gtk_event_controller_key_new ();
+  completion = gtk_source_view_get_completion (GTK_SOURCE_VIEW (view));
+  g_object_set (
+      completion,
+      "page-size", (guint) 15,
+      "remember-info-visibility", TRUE,
+      "select-on-show", FALSE,
+      "show-icons", TRUE,
+      NULL);
+  g_signal_connect_object (
+      buffer, "changed",
+      G_CALLBACK (source_buffer_changed),
+      completion, G_CONNECT_DEFAULT);
+
   im_context = gtk_source_vim_im_context_new ();
+  gtk_im_context_set_client_widget (g_object_ref (im_context), view);
 
+  key = gtk_event_controller_key_new ();
   gtk_event_controller_key_set_im_context (GTK_EVENT_CONTROLLER_KEY (key), im_context);
   gtk_event_controller_set_propagation_phase (key, GTK_PHASE_CAPTURE);
-  gtk_widget_add_controller (view, g_steal_pointer (&key));
-  gtk_im_context_set_client_widget (im_context, view);
+  gtk_widget_add_controller (view, g_object_ref (key));
 
   command_bar_label = gtk_label_new (NULL);
   gtk_widget_add_css_class (command_bar_label, "accent");
@@ -361,6 +387,31 @@ cl_make_lisp_buffer_view (void)
       gobject_to_cl (window));
 }
 
+static cl_object
+cl_finish_source_view_completions (cl_object cl_model,
+                                   cl_object cl_text_view)
+{
+  GListModel    *model                            = NULL;
+  GtkSourceView *view                             = NULL;
+  g_autoptr (SaturnClCompletionProvider) provider = NULL;
+  GtkSourceCompletion *completion                 = NULL;
+
+  model = cl_to_gobject (cl_model);
+  view  = cl_to_gobject (cl_text_view);
+
+  provider = saturn_cl_completion_provider_new ();
+  saturn_cl_completion_provider_set_title (provider, "cl-completions");
+  saturn_cl_completion_provider_set_priority (provider, 10);
+  saturn_cl_completion_provider_set_model (provider, model);
+
+  completion = gtk_source_view_get_completion (view);
+  gtk_source_completion_add_provider (
+      completion,
+      GTK_SOURCE_COMPLETION_PROVIDER (provider));
+
+  return ECL_T;
+}
+
 static void
 provider_init_global (SaturnProvider *provider)
 {
@@ -390,6 +441,8 @@ provider_init_global (SaturnProvider *provider)
   DEFUN ("submit-result", cl_submit_result, 3);
   DEFUN ("make-source-view", cl_make_source_view, 2);
   DEFUN ("make-lisp-buffer-view", cl_make_lisp_buffer_view, 0);
+
+  DEFUN ("finish-source-view-completions", cl_finish_source_view_completions, 2);
 
 #undef DEFUN
 
@@ -646,6 +699,15 @@ dark_changed (GtkSourceBuffer *buffer,
               AdwStyleManager *mgr)
 {
   source_view_check_dark_mode (buffer);
+}
+
+static void
+source_buffer_changed (GtkSourceBuffer     *buffer,
+                       GtkSourceCompletion *completion)
+{
+  /* This is needed to fix the completion manager cus it freaks out every time the
+     popup is hidden */
+  gtk_source_completion_hide (completion);
 }
 
 static void

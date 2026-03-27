@@ -95,8 +95,12 @@
                              (setf (gtk:adjustment-value vadjustment)
                                    (gtk:adjustment-upper vadjustment))
                              nil)))))
-      (saturn:add-shortcut-controller source-view
-                                      (("<primary>g" #'evaluate)))
+      ;; set up completions
+      (saturn:package-completion-buffer-async source-view
+                                              *package*)
+      ;; if the user pressing ctrl-g, evaluate the buffer
+      (saturn:add-shortcut-controller source-view (("<primary>g" #'evaluate)))
+      ;; when we map, make it as convenient as possible to start typing code
       (g:signal-connect source-view "map"
                         (lambda (self)
                           (gtk:widget-grab-focus self))
