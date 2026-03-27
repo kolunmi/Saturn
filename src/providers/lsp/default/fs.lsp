@@ -94,22 +94,31 @@
       (*files-array* (make-array 0 :fill-pointer t :adjustable t)))
 
   (defun gather-files (path)
-    (labels ((gather (path)
-               (flet ((is-hidden-file (x)
-                        (let ((name (or (pathname-name x)
-                                        (car (last (pathname-directory x))))))
-                          (when (> (length name) 1)
-                            (search "." name :end2 1)))))
-                 (let ((files (uiop:directory-files path)))
+    (let* ((batch-size 1024)
+           (batch-arr (make-array batch-size :initial-element nil))
+           (batch-idx 0))
+      (labels ((submit (f)
+                 (setf (aref batch-arr batch-idx) f)
+                 (when (>= (incf batch-idx) batch-size)
                    (bordeaux-threads:with-lock-held (*work-lock*)
-                     (loop for f in files
-                           unless (is-hidden-file f)
-                             do (vector-push-extend f *files-array*))))
+                     (loop for f across batch-arr
+                           do (vector-push-extend f *files-array*)))
+                   (setf batch-idx 0)))
+               (is-hidden-file (x)
+                 (let ((name (or (pathname-name x)
+                                 (car (last (pathname-directory x))))))
+                   (when (> (length name) 1)
+                     (search "." name :end2 1))))
+               (gather (path)
+                 (let ((files (uiop:directory-files path)))
+                   (loop for f in files
+                         unless (is-hidden-file f)
+                           do (submit f)))
                  (let ((dirs (uiop:subdirectories path)))
                    (loop for d in dirs
                          unless (is-hidden-file d)
-                           do (gather d))))))
-      (gather path)))
+                           do (gather d)))))
+        (gather path))))
 
   ;; PROVIDER IMPLEMENTATION
 
