@@ -224,6 +224,7 @@
            (saturn:make-widget
                'gtk:text-view
                (:props (:buffer buffer
+                        :editable nil
                         :monospace t)
                 :styles ("text-preview"))))
          (scrolled-window
