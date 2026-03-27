@@ -25,11 +25,12 @@
 #include "saturn-threadsafe-list-store.h"
 #include "saturn-window.h"
 
-/* #include "util.h" */
-
 static void
 start_query (SaturnWindow *self,
              gpointer      search_object);
+
+static void
+try_string_query (SaturnWindow *self);
 
 struct _SaturnWindow
 {
@@ -119,7 +120,7 @@ saturn_window_set_property (GObject      *object,
     case PROP_INITIALIZING:
       self->initializing = g_value_get_boolean (value);
       if (!self->initializing)
-        gtk_widget_grab_focus (GTK_WIDGET (self->entry));
+        try_string_query (self);
       break;
     case PROP_PROVIDERS:
       saturn_window_set_providers (self, g_value_get_object (value));
@@ -140,14 +141,7 @@ static void
 text_changed_cb (SaturnWindow *self,
                  GtkEditable  *editable)
 {
-  const char *text                   = NULL;
-  g_autoptr (GtkStringObject) string = NULL;
-
-  text = gtk_editable_get_text (editable);
-  if (text != NULL && *text != '\0')
-    string = gtk_string_object_new (text);
-
-  start_query (self, string);
+  try_string_query (self);
 }
 
 static void
@@ -419,6 +413,7 @@ static void
 saturn_window_init (SaturnWindow *self)
 {
   gtk_widget_init_template (GTK_WIDGET (self));
+  gtk_widget_grab_focus (GTK_WIDGET (self->entry));
 }
 
 void
@@ -468,6 +463,22 @@ start_query (SaturnWindow *self,
       provider = g_list_model_get_item (self->providers, i);
       saturn_provider_query (provider, search_object, self->model);
     }
+}
+
+static void
+try_string_query (SaturnWindow *self)
+{
+  const char *text                   = NULL;
+  g_autoptr (GtkStringObject) string = NULL;
+
+  if (self->initializing)
+    return;
+
+  text = gtk_editable_get_text (self->entry);
+  if (text != NULL && *text != '\0')
+    string = gtk_string_object_new (text);
+
+  start_query (self, string);
 }
 
 static gint

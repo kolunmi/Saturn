@@ -56,125 +56,120 @@ template $SaturnWindow: Adw.ApplicationWindow {
     }
   }
 
-  content: Box {
-    Adw.Spinner {
-      styles [
-        "accent",
-      ]
-      visible: bind template.initializing as <bool>;
-      hexpand: true;
-      vexpand: true;
-      halign: fill;
-      valign: fill;
-    }
-    Paned {
-      visible: bind $not(template.initializing as <bool>) as <bool>;
-      hexpand: true;
-      vexpand: true;
-      halign: fill;
-      valign: fill;
+  Paned {
+    hexpand: true;
+    vexpand: true;
+    halign: fill;
+    valign: fill;
 
-      orientation: horizontal;
-      position: 0;
-      resize-start-child: false;
-      shrink-start-child: false;
-      shrink-end-child: false;
+    orientation: horizontal;
+    position: 0;
+    resize-start-child: false;
+    shrink-start-child: false;
+    shrink-end-child: false;
 
-      start-child: Adw.ToolbarView {
-        [top]
-        Box {
-          margin-top: 15;
-          margin-bottom: 15;
-          margin-start: 15;
-          margin-end: 15;
+    start-child: Adw.ToolbarView {
+      [top]
+      Box {
+        margin-top: 15;
+        margin-bottom: 15;
+        margin-start: 15;
+        margin-end: 15;
 
-          orientation: horizontal;
-          spacing: 6;
+        orientation: horizontal;
+        spacing: 6;
 
-          Image {
-            icon-name: "system-search-symbolic";
-          }
-
-          Text entry {
-            styles [
-              "main-entry",
-            ]
-            receives-default: true;
-            halign: fill;
-            hexpand: true;
-            placeholder-text: _("Type to filter...");
-            changed => $text_changed_cb(template);
-            activate => $text_activated_cb(template);
-          }
-
-          Label status_label {
-            styles [
-              "heading",
-            ]
-            margin-end: 10;
-            xalign: 1.0;
-          }
+        Adw.Spinner {
+          styles [
+            "accent",
+          ]
+          visible: bind template.initializing as <bool>;
         }
 
-        content: ScrolledWindow {
-          width-request: 400;
-          hscrollbar-policy: never;
-          propagate-natural-height: true;
+        Image {
+          visible: bind $not(template.initializing as <bool>) as <bool>;
+          icon-name: "system-search-symbolic";
+        }
 
-          child: ListView list_view {
-            styles [
-              "navigation-sidebar",
-            ]
-
-            single-click-activate: false;
-            tab-behavior: item;
-
-            model: SingleSelection selection {
-              items-changed => $selection_changed_cb(template);
-              notify::selected => $selected_changed_cb(template);
-              notify::selected-item => $selected_item_changed_cb(template);
-            };
-
-            factory: SignalListItemFactory {
-              setup => $list_item_setup_cb(template);
-              teardown => $list_item_teardown_cb(template);
-              bind => $list_item_bind_cb(template);
-              unbind => $list_item_unbind_cb(template);
-            };
-
-            activate => $list_view_activated_cb(template);
-          };
-        };
-      };
-
-      end-child: Overlay {
-        [overlay]
-        Adw.HeaderBar {
+        Text entry {
           styles [
-            "invisible",
+            "main-entry",
           ]
-          show-title: false;
+          receives-default: true;
           halign: fill;
-          valign: start;
-
-          [end]
-          MenuButton {
-            primary: true;
-            icon-name: "open-menu-symbolic";
-            tooltip-text: _("Main Menu");
-            menu-model: primary_menu;
-          }
+          hexpand: true;
+          placeholder-text: _("Type to filter...");
+          changed => $text_changed_cb(template);
+          activate => $text_activated_cb(template);
         }
 
-        child: Adw.Bin preview_bin {
+        Label status_label {
           styles [
-            "view",
+            "heading",
           ]
-          width-request: 300;
+          margin-end: 10;
+          xalign: 1.0;
+        }
+      }
+
+      content: ScrolledWindow {
+        width-request: 400;
+        hscrollbar-policy: never;
+        propagate-natural-height: true;
+
+        child: ListView list_view {
+          styles [
+            "navigation-sidebar",
+          ]
+
+          single-click-activate: false;
+          tab-behavior: item;
+
+          model: SingleSelection selection {
+            items-changed => $selection_changed_cb(template);
+            notify::selected => $selected_changed_cb(template);
+            notify::selected-item => $selected_item_changed_cb(template);
+          };
+
+          factory: SignalListItemFactory {
+            setup => $list_item_setup_cb(template);
+            teardown => $list_item_teardown_cb(template);
+            bind => $list_item_bind_cb(template);
+            unbind => $list_item_unbind_cb(template);
+          };
+
+          activate => $list_view_activated_cb(template);
         };
       };
-    }
-  };
+    };
+
+    end-child: Overlay {
+      [overlay]
+      Adw.HeaderBar {
+        styles [
+          "invisible",
+        ]
+        show-title: false;
+        halign: fill;
+        valign: start;
+
+        [end]
+        MenuButton {
+          primary: true;
+          icon-name: "open-menu-symbolic";
+          tooltip-text: _("Main Menu");
+          menu-model: primary_menu;
+        }
+      }
+
+      child: Adw.Bin preview_bin {
+        styles [
+          "view",
+        ]
+        width-request: 300;
+      };
+    };
+  }
 }
 
 menu primary_menu {
