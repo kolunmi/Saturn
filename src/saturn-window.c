@@ -176,12 +176,18 @@ debounce_timeout (SaturnWindow *self)
 
   selected = gtk_single_selection_get_selected (self->selection);
   if (selected == GTK_INVALID_LIST_POSITION)
-    return;
+    {
+      adw_bin_set_child (self->preview_bin, NULL);
+      return;
+    }
 
   item     = g_list_model_get_item (G_LIST_MODEL (self->selection), selected);
   provider = g_object_get_qdata (item, SATURN_PROVIDER_QUARK);
   if (provider == NULL)
-    return;
+    {
+      adw_bin_set_child (self->preview_bin, NULL);
+      return;
+    }
 
   saturn_provider_bind_preview (provider, item, self->preview_bin);
 }
