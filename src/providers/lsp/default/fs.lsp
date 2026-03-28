@@ -94,7 +94,7 @@
       (*files-array* (make-array 0 :fill-pointer t :adjustable t)))
 
   (defun gather-files (path)
-    (let* ((batch-size 1024)
+    (let* ((batch-size 4096)
            (batch-arr (make-array batch-size :initial-element nil))
            (batch-idx 0))
       (labels ((submit (f)
@@ -110,14 +110,35 @@
                    (when (> (length name) 1)
                      (search "." name :end2 1))))
                (gather (path)
-                 (let ((files (uiop:directory-files path)))
-                   (loop for f in files
-                         unless (is-hidden-file f)
-                           do (submit f)))
-                 (let ((dirs (uiop:subdirectories path)))
-                   (loop for d in dirs
-                         unless (is-hidden-file d)
-                           do (gather d)))))
+                 (let ((dirs (uiop:subdirectories path))
+                       (git-dir (uiop:subpathname path ".git/")))
+                   (if (find git-dir dirs
+                             :test #'uiop:pathname-equal)
+                       ;; we are dealing with a git repo, so shrimply (🦐) grab
+                       ;; the results of ls-files
+                       (let* ((git-output
+                                (ignore-errors
+                                 (uiop:run-program (list "git"
+                                                         "-C"
+                                                         (uiop:unix-namestring path)
+                                                         "ls-files"
+                                                         "--cached"
+                                                         "--others"
+                                                         "--exclude-standard")
+                                                   :output :string))))
+                         (when git-output
+                           (with-input-from-string (s git-output)
+                             (loop for line = (read-line s nil nil)
+                                   while line
+                                   do (submit (uiop:subpathname path line))))))
+                       ;; otherwise just recurse as normal
+                       (let ((files (uiop:directory-files path)))
+                         (loop for f in files
+                               unless (is-hidden-file f)
+                                 do (submit f))
+                         (loop for d in dirs
+                               unless (is-hidden-file d)
+                                 do (gather d)))))))
         (gather path))))
 
   ;; PROVIDER IMPLEMENTATION
