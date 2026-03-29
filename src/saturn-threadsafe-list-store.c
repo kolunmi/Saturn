@@ -163,7 +163,7 @@ saturn_threadsafe_list_store_init (SaturnThreadsafeListStore *self)
 
   self->update_timeout = g_timeout_add_full (
       G_PRIORITY_DEFAULT_IDLE,
-      10,
+      50,
       (GSourceFunc) idle_update_cb,
       saturn_track_weak (self),
       saturn_weak_release);
@@ -271,7 +271,7 @@ idle_update_cb (GWeakRef *wr)
 
   g_mutex_lock (&self->buildup_mutex);
 
-#define MAX_INSERTS 512
+#define MAX_INSERTS 1024
 
   position = g_list_model_get_n_items (G_LIST_MODEL (self->store));
   added    = MIN (self->buildup->len, MAX_INSERTS);
