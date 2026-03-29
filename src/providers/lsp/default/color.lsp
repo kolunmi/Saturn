@@ -59,8 +59,9 @@
   (let* ((rgba (g:object-data item "rgba"))
          (hex (gdk:rgba-to-string rgba)))
     (saturn:copy-to-clipboard hex))
-  ;; restore with literal query text
-  (gtk:string-object-string query))
+  (make-instance 'saturn:selection-event
+                 :kind :close
+                 :selected-text (gtk:string-object-string query)))
 
 (defun bind-list-item (provider item)
   (let* ((label

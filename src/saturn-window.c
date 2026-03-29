@@ -303,6 +303,7 @@ action_select_candidate (GtkWidget  *widget,
   const char     *text               = NULL;
   g_autoptr (GtkStringObject) string = NULL;
   g_autofree char *selected_text     = FALSE;
+  SaturnSelectKind select_kind       = SATURN_SELECT_KIND_NONE;
 
   selected = g_variant_get_int32 (parameter);
   if (selected < 0)
@@ -320,22 +321,42 @@ action_select_candidate (GtkWidget  *widget,
   if (provider == NULL)
     return;
 
-  text          = gtk_editable_get_text (self->entry);
-  string        = gtk_string_object_new (text);
-  selected_text = saturn_provider_select (
+  text        = gtk_editable_get_text (self->entry);
+  string      = gtk_string_object_new (text);
+  select_kind = saturn_provider_select (
       provider,
       item,
       G_OBJECT (string),
+      &selected_text,
       &local_error);
-  if (selected_text == NULL)
+  if (select_kind == SATURN_SELECT_KIND_NONE)
     return;
 
-  g_object_set (
-      g_application_get_default (),
-      "selected-text", selected_text,
-      NULL);
+  if (selected_text == NULL)
+    {
+      g_warning ("provider returned non %s select kind "
+                 "without providing selected text",
+                 g_enum_to_string (SATURN_TYPE_SELECT_KIND, SATURN_SELECT_KIND_NONE));
+      return;
+    }
 
-  gtk_window_close (GTK_WINDOW (self));
+  switch (select_kind)
+    {
+    case SATURN_SELECT_KIND_CLOSE:
+      g_object_set (
+          g_application_get_default (),
+          "selected-text", selected_text,
+          NULL);
+      gtk_window_close (GTK_WINDOW (self));
+      break;
+    case SATURN_SELECT_KIND_SUBSTITUTE:
+      gtk_editable_set_text (self->entry, selected_text);
+      gtk_editable_set_position (self->entry, -1);
+      break;
+    case SATURN_SELECT_KIND_NONE:
+    default:
+      break;
+    }
 }
 
 static void

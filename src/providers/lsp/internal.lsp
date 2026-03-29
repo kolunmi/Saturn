@@ -1,4 +1,25 @@
 (gobject:define-genum
+    "SaturnSelectKind"
+    select-kind
+    (:export t)
+  (:none 0)
+  (:close 1)
+  (:substitute 2))
+
+(gobject:define-gobject
+    "SaturnClSelectionEvent"
+    selection-event
+    (:superclass g:object
+     :export t
+     :interfaces ())
+    ((kind
+      selection-event-kind
+      "kind" "SaturnSelectKind" t t)
+     (selected-text
+      selection-event-selected-text
+      "selected-text" "gchararray" t t)))
+
+(gobject:define-genum
     "SaturnClCompletionProposalKind"
     completion-proposal-kind
     (:export nil)

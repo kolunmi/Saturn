@@ -174,8 +174,9 @@
   (let ((pkg-name (gtk:string-object-string
                    (g:object-property item "obj0"))))
     (saturn:copy-to-clipboard pkg-name)
-    ;; restore with name
-    pkg-name))
+    (make-instance 'saturn:selection-event
+                   :kind :close
+                   :selected-text pkg-name)))
 
 (defun bind-preview (provider item)
   (let* ((pkg-name (gtk:string-object-string (g:object-property item "obj0")))

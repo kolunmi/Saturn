@@ -4109,8 +4109,9 @@
   (let ((emoji (gtk:string-object-string (g:object-property item "obj0")))
         (desc (gtk:string-object-string (g:object-property item "obj1"))))
     (saturn:copy-to-clipboard emoji)
-    ;; restore with emoji character
-    desc))
+    (make-instance 'saturn:selection-event
+                   :kind :close
+                   :selected-text desc)))
 
 (defun bind-preview (provider item)
   (let* ((emoji (gtk:string-object-string

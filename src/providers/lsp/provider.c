@@ -27,6 +27,7 @@
 #include <gtksourceview/gtksource.h>
 
 #include "provider.h"
+#include "saturn-cl-selection-event.h"
 #include "saturn-generic-result.h"
 #include "saturn-provider.h"
 #include "saturn-signal-widget.h"
@@ -176,6 +177,7 @@ saturn_lsp_provider_class_init (SaturnLspProviderClass *klass)
 
   g_type_ensure (SATURN_TYPE_GENERIC_RESULT);
   g_type_ensure (SATURN_TYPE_SIGNAL_WIDGET);
+  g_type_ensure (SATURN_TYPE_CL_SELECTION_EVENT);
   g_type_ensure (SATURN_TYPE_CL_COMPLETION_PROPOSAL);
   g_type_ensure (SATURN_TYPE_CL_COMPLETION_PROVIDER);
 }
@@ -545,16 +547,17 @@ provider_score (SaturnProvider *provider,
   return score;
 }
 
-static char *
+static SaturnSelectKind
 provider_select (SaturnProvider *provider,
                  gpointer        item,
                  GObject        *query,
+                 char          **selected_text,
                  GError        **error)
 {
-  SaturnLspProvider *self     = SATURN_LSP_PROVIDER (provider);
-  char               fun[256] = { 0 };
-  cl_object          result   = NULL;
-  const char        *ret      = NULL;
+  SaturnLspProvider      *self     = SATURN_LSP_PROVIDER (provider);
+  char                    fun[256] = { 0 };
+  cl_object               result   = NULL;
+  SaturnClSelectionEvent *event    = NULL;
 
   g_snprintf (fun, sizeof (fun), "%s:select", self->name);
   result = cl_eval (cl_list (
@@ -564,18 +567,9 @@ provider_select (SaturnProvider *provider,
       gobject_to_cl (item),
       gobject_to_cl (query)));
 
-  if (ecl_stringp (result))
-    ret = ecl_base_string_pointer_safe (
-        si_coerce_to_base_string (
-            result));
-  else if (result != ECL_NIL)
-    g_warning ("%s: 'select' must return a string or nil",
-               self->name);
-
-  if (ret != NULL)
-    return g_strdup (ret);
-  else
-    return NULL;
+  event = cl_to_gobject (result);
+  g_object_get (event, "selected-text", selected_text, NULL);
+  return saturn_cl_selection_event_get_kind (event);
 }
 
 static void

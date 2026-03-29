@@ -216,8 +216,9 @@
                              "--host"
                              "xdg-open"
                              path)))
-    ;; restore with file basename
-    (file-namestring path)))
+    (make-instance 'saturn:selection-event
+                   :kind :close
+                   :selected-text (file-namestring path))))
 
 (defun bind-preview (provider item)
   (let* ((buffer (g:object-property item "obj1"))

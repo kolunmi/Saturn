@@ -25,6 +25,13 @@ G_DEFINE_QUARK (saturn-provider-quark, saturn_provider);
 G_DEFINE_QUARK (saturn-provider-score-quark, saturn_provider_score);
 /* clang-format on */
 
+G_DEFINE_ENUM_TYPE (
+    SaturnSelectKind,
+    saturn_select_kind,
+    G_DEFINE_ENUM_VALUE (SATURN_SELECT_KIND_NONE, "none"),
+    G_DEFINE_ENUM_VALUE (SATURN_SELECT_KIND_CLOSE, "close"),
+    G_DEFINE_ENUM_VALUE (SATURN_SELECT_KIND_SUBSTITUTE, "substitute"));
+
 G_DEFINE_INTERFACE (SaturnProvider, saturn_provider, G_TYPE_OBJECT)
 
 static void
@@ -53,13 +60,14 @@ saturn_provider_real_score (SaturnProvider *self,
   return 0;
 }
 
-static char *
+static SaturnSelectKind
 saturn_provider_real_select (SaturnProvider *self,
                              gpointer        item,
                              GObject        *query,
+                             char          **selected_text,
                              GError        **error)
 {
-  return NULL;
+  return SATURN_SELECT_KIND_NONE;
 }
 
 static void
@@ -174,17 +182,18 @@ saturn_provider_score (SaturnProvider *self,
                                                   query);
 }
 
-char *
+SaturnSelectKind
 saturn_provider_select (SaturnProvider *self,
                         gpointer        item,
                         GObject        *query,
+                        char          **selected_text,
                         GError        **error)
 {
   g_return_val_if_fail (SATURN_IS_PROVIDER (self), 0);
   g_return_val_if_fail (G_IS_OBJECT (item), 0);
   g_return_val_if_fail (G_IS_OBJECT (query), 0);
 
-  return SATURN_PROVIDER_GET_IFACE (self)->select (self, item, query, error);
+  return SATURN_PROVIDER_GET_IFACE (self)->select (self, item, query, selected_text, error);
 }
 
 void

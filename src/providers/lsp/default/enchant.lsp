@@ -159,8 +159,9 @@
   (let* ((suggestion (gtk:string-object-string
                       (g:object-property item "obj0"))))
     (saturn:copy-to-clipboard suggestion)
-    ;; restore with selected suggestion
-    suggestion))
+    (make-instance 'saturn:selection-event
+                   :kind :close
+                   :selected-text suggestion)))
 
 (defun bind-preview (provider item)
   (let* ((suggestion (gtk:string-object-string

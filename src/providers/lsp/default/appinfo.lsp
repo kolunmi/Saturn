@@ -274,8 +274,9 @@
                             "gio"
                             "launch"
                             desktop-file))
-    ;; restore with app name
-    (app-info-desktop-name info)))
+    (make-instance 'saturn:selection-event
+                   :kind :close
+                   :selected-text (app-info-desktop-name info))))
 
 (defun bind-preview (provider item)
   (let* ((info (g:object-data item "info"))

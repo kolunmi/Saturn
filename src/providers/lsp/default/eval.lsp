@@ -41,7 +41,9 @@
   1000000000000)
 
 (defun select (provider item query)
-  nil)
+  (make-instance 'saturn:selection-event
+                 :kind :none
+                 :selected-text nil))
 
 (defun bind-list-item (provider item)
   (let ((label

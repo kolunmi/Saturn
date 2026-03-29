@@ -127,8 +127,9 @@
 (defun select (provider item query)
   (let* ((selection-text (gtk:string-object-string
                           (g:object-property item "obj0"))))
-    (saturn:copy-to-clipboard selection-text))
-  nil)
+    (make-instance 'saturn:selection-event
+                   :kind :substitute
+                   :selected-text selection-text)))
 
 (defun bind-preview (provider item)
   (let* ((selection-text (gtk:string-object-string

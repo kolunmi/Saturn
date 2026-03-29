@@ -34,6 +34,15 @@ GQuark saturn_provider_score_quark (void);
 
 #define SATURN_PROVIDER_MAX_SCORE_DOUBLE 100000.0
 
+typedef enum
+{
+  SATURN_SELECT_KIND_NONE,
+  SATURN_SELECT_KIND_CLOSE,
+  SATURN_SELECT_KIND_SUBSTITUTE,
+} SaturnSelectKind;
+GType saturn_select_kind_get_type (void);
+#define SATURN_TYPE_SELECT_KIND (saturn_select_kind_get_type ())
+
 #define SATURN_TYPE_PROVIDER (saturn_provider_get_type ())
 G_DECLARE_INTERFACE (SaturnProvider, saturn_provider, SATURN, PROVIDER, GObject)
 
@@ -55,10 +64,11 @@ struct _SaturnProviderInterface
   /* if the selection is "final" (as in the window should now close) the return
      value of this function should be a string that could be used to retrieve
      the same item in a future Saturn process */
-  char *(*select) (SaturnProvider *self,
-                   gpointer        item,
-                   GObject        *query,
-                   GError        **error);
+  SaturnSelectKind (*select) (SaturnProvider *self,
+                              gpointer        item,
+                              GObject        *query,
+                              char          **selected_text,
+                              GError        **error);
 
   void (*setup_list_item) (SaturnProvider *self,
                            AdwBin         *list_item);
@@ -103,10 +113,11 @@ saturn_provider_score (SaturnProvider *self,
                        gpointer        item,
                        GObject        *query);
 
-char *
+SaturnSelectKind
 saturn_provider_select (SaturnProvider *self,
                         gpointer        item,
                         GObject        *query,
+                        char          **selected_text,
                         GError        **error);
 
 void
