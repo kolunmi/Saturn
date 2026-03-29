@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-  <gresource prefix="/io/github/kolunmi/Saturn">
+  <gresource prefix="/net/kolunmi/Saturn">
     <file alias="style.css">gtk/style.css</file>
     <file preprocess="xml-stripblanks">saturn-window.ui</file>
     <file alias="internal.lsp">providers/lsp/internal.lsp</file>

@@ -1,4 +1,4 @@
-application_id = 'io.github.kolunmi.Saturn'
+application_id = 'net.kolunmi.Saturn'
 
 scalable_dir = 'hicolor' / 'scalable' / 'apps'
 install_data(

@@ -473,7 +473,7 @@ provider_init_global (SaturnProvider *provider)
 #undef DEFUN
 
   bytes = g_resources_lookup_data (
-      "/io/github/kolunmi/Saturn/internal.lsp",
+      "/net/kolunmi/Saturn/internal.lsp",
       G_RESOURCE_LOOKUP_FLAGS_NONE,
       NULL);
   data = g_bytes_get_data (bytes, &size);

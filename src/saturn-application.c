@@ -107,7 +107,7 @@ saturn_application_new (const char       *application_id,
   return g_object_new (SATURN_TYPE_APPLICATION,
                        "application-id", application_id,
                        "flags", flags,
-                       "resource-base-path", "/io/github/kolunmi/Saturn",
+                       "resource-base-path", "/net/kolunmi/Saturn",
                        "initializing", TRUE,
                        NULL);
 }
@@ -202,7 +202,7 @@ saturn_application_about_action (GSimpleAction *action,
 
   adw_show_about_dialog (GTK_WIDGET (window),
                          "application-name", "saturn",
-                         "application-icon", "io.github.kolunmi.Saturn",
+                         "application-icon", "net.kolunmi.Saturn",
                          "developer-name", "Eva",
                          "translator-credits", _ ("translator-credits"),
                          "version", "0.1.0",
@@ -265,34 +265,34 @@ ensure_providers (SaturnApplication *self)
 
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
                    "name", "history",
-                   "script-uri", "resource:///io/github/kolunmi/Saturn/history.lsp");
+                   "script-uri", "resource:///net/kolunmi/Saturn/history.lsp");
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
                    "name", "eval",
-                   "script-uri", "resource:///io/github/kolunmi/Saturn/eval.lsp");
+                   "script-uri", "resource:///net/kolunmi/Saturn/eval.lsp");
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
                    "name", "calc",
-                   "script-uri", "resource:///io/github/kolunmi/Saturn/calc.lsp");
+                   "script-uri", "resource:///net/kolunmi/Saturn/calc.lsp");
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
                    "name", "emoji",
-                   "script-uri", "resource:///io/github/kolunmi/Saturn/emoji.lsp");
+                   "script-uri", "resource:///net/kolunmi/Saturn/emoji.lsp");
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
                    "name", "appinfo",
-                   "script-uri", "resource:///io/github/kolunmi/Saturn/appinfo.lsp");
+                   "script-uri", "resource:///net/kolunmi/Saturn/appinfo.lsp");
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
                    "name", "fs",
-                   "script-uri", "resource:///io/github/kolunmi/Saturn/fs.lsp");
+                   "script-uri", "resource:///net/kolunmi/Saturn/fs.lsp");
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
                    "name", "color",
-                   "script-uri", "resource:///io/github/kolunmi/Saturn/color.lsp");
+                   "script-uri", "resource:///net/kolunmi/Saturn/color.lsp");
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
                    "name", "grep",
-                   "script-uri", "resource:///io/github/kolunmi/Saturn/grep.lsp");
+                   "script-uri", "resource:///net/kolunmi/Saturn/grep.lsp");
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
                    "name", "enchant",
-                   "script-uri", "resource:///io/github/kolunmi/Saturn/enchant.lsp");
+                   "script-uri", "resource:///net/kolunmi/Saturn/enchant.lsp");
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
                    "name", "brew",
-                   "script-uri", "resource:///io/github/kolunmi/Saturn/brew.lsp");
+                   "script-uri", "resource:///net/kolunmi/Saturn/brew.lsp");
 
 #undef APPEND_PROVIDER
 

@@ -417,7 +417,7 @@ saturn_window_class_init (SaturnWindowClass *klass)
 
   g_object_class_install_properties (object_class, LAST_PROP, props);
 
-  gtk_widget_class_set_template_from_resource (widget_class, "/io/github/kolunmi/Saturn/saturn-window.ui");
+  gtk_widget_class_set_template_from_resource (widget_class, "/net/kolunmi/Saturn/saturn-window.ui");
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, entry);
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, status_label);
   gtk_widget_class_bind_template_child (widget_class, SaturnWindow, selection);

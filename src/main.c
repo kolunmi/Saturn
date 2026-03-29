@@ -54,7 +54,7 @@ main (int   argc,
   ecl_set_option (ECL_OPT_SIGNAL_HANDLING_THREAD, 0);
   g_assert (cl_boot (argc, argv) != 0);
 
-  app      = saturn_application_new ("io.github.kolunmi.Saturn", G_APPLICATION_DEFAULT_FLAGS);
+  app      = saturn_application_new ("net.kolunmi.Saturn", G_APPLICATION_DEFAULT_FLAGS);
   init_ecl = g_thread_new ("Init ECL", (GThreadFunc) init_ecl_thread, g_object_ref (app));
   ret      = g_application_run (G_APPLICATION (app), argc, argv);
 

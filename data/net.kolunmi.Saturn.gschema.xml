@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="saturn">
-	<schema id="io.github.kolunmi.Saturn" path="/io/github/kolunmi/Saturn/">
+	<schema id="net.kolunmi.Saturn" path="/net/kolunmi/Saturn/">
 	</schema>
 </schemalist>
