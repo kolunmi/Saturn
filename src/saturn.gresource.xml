@@ -4,6 +4,7 @@
     <file alias="style.css">gtk/style.css</file>
     <file preprocess="xml-stripblanks">saturn-window.ui</file>
     <file alias="internal.lsp">providers/lsp/internal.lsp</file>
+    <file alias="history.lsp">providers/lsp/default/history.lsp</file>
     <file alias="eval.lsp">providers/lsp/default/eval.lsp</file>
     <file alias="fs.lsp">providers/lsp/default/fs.lsp</file>
     <file alias="appinfo.lsp">providers/lsp/default/appinfo.lsp</file>

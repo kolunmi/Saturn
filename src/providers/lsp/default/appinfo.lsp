@@ -232,12 +232,14 @@
 
 ;; PROVIDER IMPLEMENTATION
 
-(defun deinit-global ()
+(defun deinit-global (selected-text)
   nil)
 
 (defun query (provider object store)
   (let* ((str (gtk:string-object-string object))
          (tokens (saturn:extract-tokens str)))
+    (unless (> (length str) 0)
+      (return-from query))
     (loop for info in *app-infos*
           for desktop-name = (app-info-desktop-name info)
           for keywords = (append (list desktop-name)
@@ -271,9 +273,9 @@
                             "--host"
                             "gio"
                             "launch"
-                            desktop-file)))
-  ;; exit saturn
-  t)
+                            desktop-file))
+    ;; restore with app name
+    (app-info-desktop-name info)))
 
 (defun bind-preview (provider item)
   (let* ((info (g:object-data item "info"))

@@ -119,7 +119,7 @@
 
 ;; PROVIDER IMPLEMENTATION
 
-(defun deinit-global ()
+(defun deinit-global (selected-text)
   nil)
 
 (let ((*timeout-source* 0))
@@ -209,14 +209,15 @@
 
 (defun select (provider item query)
   ;; same as fs.lsp
-  (let* ((path (gtk:string-object-string (g:object-property item "obj0"))))
+  (let* ((path (gtk:string-object-string
+                (g:object-property item "obj0"))))
     (ignore-errors
      (uiop:run-program (list "flatpak-spawn"
                              "--host"
                              "xdg-open"
-                             path))))
-  ;; exit saturn
-  t)
+                             path)))
+    ;; restore with file basename
+    (file-namestring path)))
 
 (defun bind-preview (provider item)
   (let* ((buffer (g:object-property item "obj1"))

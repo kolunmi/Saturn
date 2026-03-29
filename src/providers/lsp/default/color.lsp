@@ -38,12 +38,14 @@
 
 ;; PROVIDER IMPLEMENTATION
 
-(defun deinit-global ()
+(defun deinit-global (selected-text)
   nil)
 
 (defun query (provider object store)
   (let* ((str (gtk:string-object-string object))
          (rgba (gdk:rgba-parse str)))
+    (unless (> (length str) 0)
+      (return-from query))
     (when rgba
       (saturn:submit-result (let ((result (make-instance 'color-result)))
                               (setf (g:object-data result "rgba") rgba)
@@ -57,8 +59,8 @@
   (let* ((rgba (g:object-data item "rgba"))
          (hex (gdk:rgba-to-string rgba)))
     (saturn:copy-to-clipboard hex))
-  ;; exit saturn
-  t)
+  ;; restore with literal query text
+  (gtk:string-object-string query))
 
 (defun bind-list-item (provider item)
   (let* ((label

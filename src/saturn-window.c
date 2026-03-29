@@ -297,12 +297,12 @@ action_select_candidate (GtkWidget  *widget,
 {
   SaturnWindow *self                 = SATURN_WINDOW (widget);
   g_autoptr (GError) local_error     = NULL;
-  gboolean result                    = FALSE;
-  int      selected                  = 0;
+  int selected                       = 0;
   g_autoptr (GObject) item           = NULL;
   SaturnProvider *provider           = NULL;
   const char     *text               = NULL;
   g_autoptr (GtkStringObject) string = NULL;
+  g_autofree char *selected_text     = FALSE;
 
   selected = g_variant_get_int32 (parameter);
   if (selected < 0)
@@ -320,18 +320,20 @@ action_select_candidate (GtkWidget  *widget,
   if (provider == NULL)
     return;
 
-  text = gtk_editable_get_text (self->entry);
-  if (text != NULL && *text != '\0')
-    string = gtk_string_object_new (text);
-
-  result = saturn_provider_select (
+  text          = gtk_editable_get_text (self->entry);
+  string        = gtk_string_object_new (text);
+  selected_text = saturn_provider_select (
       provider,
       item,
       G_OBJECT (string),
       &local_error);
-  if (!result)
-    /* TODO: show `local_error` in UI */
+  if (selected_text == NULL)
     return;
+
+  g_object_set (
+      g_application_get_default (),
+      "selected-text", selected_text,
+      NULL);
 
   gtk_window_close (GTK_WINDOW (self));
 }
@@ -480,10 +482,8 @@ try_string_query (SaturnWindow *self)
   if (self->initializing)
     return;
 
-  text = gtk_editable_get_text (self->entry);
-  if (text != NULL && *text != '\0')
-    string = gtk_string_object_new (text);
-
+  text   = gtk_editable_get_text (self->entry);
+  string = gtk_string_object_new (text);
   start_query (self, string);
 }
 

@@ -187,6 +187,28 @@ saturn_lsp_provider_init (SaturnLspProvider *self)
 }
 
 static cl_object
+cl_get_saturn_cache_dir (void)
+{
+  static char *saturn_cache = NULL;
+
+  if (g_once_init_enter_pointer (&saturn_cache))
+    {
+      const char *cache_dir = NULL;
+      const char *appid     = NULL;
+
+      cache_dir = g_get_user_cache_dir ();
+      appid     = g_application_get_application_id (g_application_get_default ());
+
+      g_once_init_leave_pointer (
+          &saturn_cache,
+          /* cl requires a trailing / to be considered a directory */
+          g_strdup_printf ("%s/%s/", cache_dir, appid));
+    }
+
+  return ecl_make_constant_base_string (saturn_cache, -1);
+}
+
+static cl_object
 cl_submit_result (cl_object cl_result,
                   cl_object cl_store,
                   cl_object cl_provider)
@@ -438,6 +460,8 @@ provider_init_global (SaturnProvider *provider)
   }                                                \
   G_STMT_END
 
+  DEFUN ("get-saturn-cache-dir", cl_get_saturn_cache_dir, 0);
+
   DEFUN ("submit-result", cl_submit_result, 3);
   DEFUN ("make-source-view", cl_make_source_view, 2);
   DEFUN ("make-lisp-buffer-view", cl_make_lisp_buffer_view, 0);
@@ -462,13 +486,19 @@ provider_init_global (SaturnProvider *provider)
 }
 
 static void
-provider_deinit_global (SaturnProvider *provider)
+provider_deinit_global (SaturnProvider *provider,
+                        const char     *selected_text)
 {
   SaturnLspProvider *self     = SATURN_LSP_PROVIDER (provider);
   char               fun[256] = { 0 };
 
   g_snprintf (fun, sizeof (fun), "%s:deinit-global", self->name);
-  cl_eval (cl_list (1, ecl_read_from_cstring (fun)));
+  cl_eval (cl_list (
+      2,
+      ecl_read_from_cstring (fun),
+      selected_text != NULL
+          ? ecl_make_constant_base_string (selected_text, -1)
+          : ECL_NIL));
 }
 
 static void
@@ -515,7 +545,7 @@ provider_score (SaturnProvider *provider,
   return score;
 }
 
-static gboolean
+static char *
 provider_select (SaturnProvider *provider,
                  gpointer        item,
                  GObject        *query,
@@ -524,7 +554,7 @@ provider_select (SaturnProvider *provider,
   SaturnLspProvider *self     = SATURN_LSP_PROVIDER (provider);
   char               fun[256] = { 0 };
   cl_object          result   = NULL;
-  gboolean           ret      = FALSE;
+  const char        *ret      = NULL;
 
   g_snprintf (fun, sizeof (fun), "%s:select", self->name);
   result = cl_eval (cl_list (
@@ -533,9 +563,19 @@ provider_select (SaturnProvider *provider,
       gobject_to_cl (provider),
       gobject_to_cl (item),
       gobject_to_cl (query)));
-  ret    = ecl_to_bool (result);
 
-  return ret;
+  if (ecl_stringp (result))
+    ret = ecl_base_string_pointer_safe (
+        si_coerce_to_base_string (
+            result));
+  else if (result != ECL_NIL)
+    g_warning ("%s: 'select' must return a string or nil",
+               self->name);
+
+  if (ret != NULL)
+    return g_strdup (ret);
+  else
+    return NULL;
 }
 
 static void

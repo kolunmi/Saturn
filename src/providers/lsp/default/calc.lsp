@@ -135,12 +135,14 @@
 
 ;; PROVIDER IMPLEMENTATION
 
-(defun deinit-global ()
+(defun deinit-global (selected-text)
   nil)
 
 (defun query (provider object store)
   (let* ((str (gtk:string-object-string object))
          (tokens (ignore-errors (parse-tokens str))))
+    (unless (> (length str) 0)
+      (return-from query))
     (unless tokens
       (return-from query))
     (multiple-value-bind (number steps)
@@ -160,8 +162,8 @@
   (let* ((number (g:object-data item "number"))
          (string-form (format nil "~a" number)))
     (saturn:copy-to-clipboard string-form))
-  ;; exit saturn
-  t)
+  ;; restore with literal query text
+  (gtk:string-object-string query))
 
 (defun bind-list-item (provider item)
   (let* ((number (g:object-data item "number"))

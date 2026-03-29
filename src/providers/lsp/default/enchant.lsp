@@ -93,7 +93,7 @@
 
 ;; PROVIDER IMPLEMENTATION
 
-(defun deinit-global ()
+(defun deinit-global (selected-text)
   nil)
 
 (let ((*timeout-source* 0))
@@ -158,9 +158,9 @@
 (defun select (provider item query)
   (let* ((suggestion (gtk:string-object-string
                       (g:object-property item "obj0"))))
-    (saturn:copy-to-clipboard suggestion))
-  ;; exit saturn
-  t)
+    (saturn:copy-to-clipboard suggestion)
+    ;; restore with selected suggestion
+    suggestion))
 
 (defun bind-preview (provider item)
   (let* ((suggestion (gtk:string-object-string

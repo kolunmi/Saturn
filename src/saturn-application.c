@@ -31,7 +31,9 @@ struct _SaturnApplication
 {
   AdwApplication parent_instance;
 
-  gboolean    initializing;
+  gboolean initializing;
+  char    *selected_text;
+
   GListStore *providers;
 };
 
@@ -42,6 +44,7 @@ enum
   PROP_0,
 
   PROP_INITIALIZING,
+  PROP_SELECTED_TEXT,
 
   LAST_PROP
 };
@@ -63,6 +66,9 @@ saturn_application_get_property (GObject    *object,
     case PROP_INITIALIZING:
       g_value_set_boolean (value, self->initializing);
       break;
+    case PROP_SELECTED_TEXT:
+      g_value_set_string (value, self->selected_text);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
     }
@@ -82,6 +88,10 @@ saturn_application_set_property (GObject      *object,
       self->initializing = g_value_get_boolean (value);
       if (!self->initializing)
         ensure_providers (self);
+      break;
+    case PROP_SELECTED_TEXT:
+      g_clear_pointer (&self->selected_text, g_free);
+      self->selected_text = g_value_dup_string (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -144,7 +154,7 @@ saturn_application_shutdown (GApplication *app)
       g_autoptr (SaturnProvider) provider = NULL;
 
       provider = g_list_model_get_item (G_LIST_MODEL (self->providers), i);
-      saturn_provider_deinit_global (provider);
+      saturn_provider_deinit_global (provider, self->selected_text);
     }
 
   G_APPLICATION_CLASS (saturn_application_parent_class)->shutdown (app);
@@ -163,6 +173,12 @@ saturn_application_class_init (SaturnApplicationClass *klass)
       g_param_spec_boolean (
           "initializing",
           NULL, NULL, FALSE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  props[PROP_SELECTED_TEXT] =
+      g_param_spec_string (
+          "selected-text",
+          NULL, NULL, NULL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (object_class, LAST_PROP, props);
@@ -247,6 +263,9 @@ ensure_providers (SaturnApplication *self)
   }                                              \
   G_STMT_END
 
+  APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
+                   "name", "history",
+                   "script-uri", "resource:///io/github/kolunmi/Saturn/history.lsp");
   APPEND_PROVIDER (SATURN_TYPE_LSP_PROVIDER,
                    "name", "eval",
                    "script-uri", "resource:///io/github/kolunmi/Saturn/eval.lsp");

@@ -33,7 +33,8 @@ saturn_provider_real_init_global (SaturnProvider *self)
 }
 
 static void
-saturn_provider_real_deinit_global (SaturnProvider *self)
+saturn_provider_real_deinit_global (SaturnProvider *self,
+                                    const char     *selected_text)
 {
 }
 
@@ -52,13 +53,13 @@ saturn_provider_real_score (SaturnProvider *self,
   return 0;
 }
 
-static gboolean
+static char *
 saturn_provider_real_select (SaturnProvider *self,
                              gpointer        item,
                              GObject        *query,
                              GError        **error)
 {
-  return TRUE;
+  return NULL;
 }
 
 static void
@@ -141,10 +142,11 @@ saturn_provider_init_global (SaturnProvider *self)
 }
 
 void
-saturn_provider_deinit_global (SaturnProvider *self)
+saturn_provider_deinit_global (SaturnProvider *self,
+                               const char     *selected_text)
 {
   g_return_if_fail (SATURN_IS_PROVIDER (self));
-  return SATURN_PROVIDER_GET_IFACE (self)->deinit_global (self);
+  return SATURN_PROVIDER_GET_IFACE (self)->deinit_global (self, selected_text);
 }
 
 void
@@ -172,7 +174,7 @@ saturn_provider_score (SaturnProvider *self,
                                                   query);
 }
 
-gboolean
+char *
 saturn_provider_select (SaturnProvider *self,
                         gpointer        item,
                         GObject        *query,
@@ -182,10 +184,7 @@ saturn_provider_select (SaturnProvider *self,
   g_return_val_if_fail (G_IS_OBJECT (item), 0);
   g_return_val_if_fail (G_IS_OBJECT (query), 0);
 
-  return SATURN_PROVIDER_GET_IFACE (self)->select (self,
-                                                   item,
-                                                   query,
-                                                   error);
+  return SATURN_PROVIDER_GET_IFACE (self)->select (self, item, query, error);
 }
 
 void

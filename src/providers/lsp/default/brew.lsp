@@ -112,7 +112,7 @@
 
 ;; PROVIDER IMPLEMENTATION
 
-(defun deinit-global ()
+(defun deinit-global (selected-text)
   nil)
 
 (let ((*timeout-source* 0))
@@ -173,8 +173,9 @@
 (defun select (provider item query)
   (let ((pkg-name (gtk:string-object-string
                    (g:object-property item "obj0"))))
-    (saturn:copy-to-clipboard pkg-name))
-  t)
+    (saturn:copy-to-clipboard pkg-name)
+    ;; restore with name
+    pkg-name))
 
 (defun bind-preview (provider item)
   (let* ((pkg-name (gtk:string-object-string (g:object-property item "obj0")))

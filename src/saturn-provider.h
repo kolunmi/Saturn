@@ -42,9 +42,9 @@ struct _SaturnProviderInterface
   GTypeInterface parent_iface;
 
   void (*init_global) (SaturnProvider *self);
-  void (*deinit_global) (SaturnProvider *self);
+  void (*deinit_global) (SaturnProvider *self,
+                         const char     *selected_text);
 
-  /* Provider must close sending side of channel when done */
   void (*query) (SaturnProvider            *self,
                  GObject                   *object,
                  SaturnThreadsafeListStore *store);
@@ -52,11 +52,13 @@ struct _SaturnProviderInterface
                   gpointer        item,
                   GObject        *query);
 
-  /* `SELECT` SHOULD BE RAN INSIDE OF A FIBER */
-  gboolean (*select) (SaturnProvider *self,
-                      gpointer        item,
-                      GObject        *query,
-                      GError        **error);
+  /* if the selection is "final" (as in the window should now close) the return
+     value of this function should be a string that could be used to retrieve
+     the same item in a future Saturn process */
+  char *(*select) (SaturnProvider *self,
+                   gpointer        item,
+                   GObject        *query,
+                   GError        **error);
 
   void (*setup_list_item) (SaturnProvider *self,
                            AdwBin         *list_item);
@@ -88,7 +90,8 @@ void
 saturn_provider_init_global (SaturnProvider *self);
 
 void
-saturn_provider_deinit_global (SaturnProvider *self);
+saturn_provider_deinit_global (SaturnProvider *self,
+                               const char     *selected_text);
 
 void
 saturn_provider_query (SaturnProvider            *self,
@@ -100,7 +103,7 @@ saturn_provider_score (SaturnProvider *self,
                        gpointer        item,
                        GObject        *query);
 
-gboolean
+char *
 saturn_provider_select (SaturnProvider *self,
                         gpointer        item,
                         GObject        *query,

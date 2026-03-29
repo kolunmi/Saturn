@@ -4062,7 +4062,7 @@
 
 ;; PROVIDER IMPLEMENTATION
 
-(defun deinit-global ()
+(defun deinit-global (selected-text)
   nil)
 
 (let ((*timeout-source* 0))
@@ -4106,10 +4106,11 @@
     (saturn:generic-str-score str emoji-names)))
 
 (defun select (provider item query)
-  (let ((emoji (gtk:string-object-string (g:object-property item "obj0"))))
-    (saturn:copy-to-clipboard emoji))
-  ;; exit saturn
-  t)
+  (let ((emoji (gtk:string-object-string (g:object-property item "obj0")))
+        (desc (gtk:string-object-string (g:object-property item "obj1"))))
+    (saturn:copy-to-clipboard emoji)
+    ;; restore with emoji character
+    desc))
 
 (defun bind-preview (provider item)
   (let* ((emoji (gtk:string-object-string

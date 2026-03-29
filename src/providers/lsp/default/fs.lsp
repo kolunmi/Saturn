@@ -146,7 +146,7 @@
   (let ((*gather-thread* (bordeaux-threads:make-thread
                           (lambda ()
                             (gather-files #P"~/")))))
-    (defun deinit-global ()
+    (defun deinit-global (selected-text)
       (when (bordeaux-threads:thread-alive-p *gather-thread*)
         (bordeaux-threads:destroy-thread *gather-thread*))))
 
@@ -188,9 +188,9 @@
      (uiop:run-program (list "flatpak-spawn"
                              "--host"
                              "xdg-open"
-                             file))))
-  ;; exit saturn
-  t)
+                             file)))
+    ;; restore with file basename
+    (file-namestring path)))
 
 (defun bind-preview (provider item)
   (let* ((path (g:object-data item "path"))
