@@ -169,7 +169,6 @@
       "build-options": {
         "env": {
           "CARGO_HOME": "/run/build/ripgrep/cargo",
-          "CARGO_NET_OFFLINE": "true"
         }
       },
       "build-commands": [
