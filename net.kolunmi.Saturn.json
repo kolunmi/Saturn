@@ -3,7 +3,13 @@
   "runtime" : "org.gnome.Platform",
   "runtime-version" : "50",
   "sdk" : "org.gnome.Sdk",
+  "sdk-extensions": [
+    "org.freedesktop.Sdk.Extension.rust-stable"
+  ],
   "command" : "saturn",
+  "build-options": {
+    "append-path": "/usr/lib/sdk/rust-stable/bin"
+  },
   "finish-args" : [
     "--share=network",
     "--share=ipc",
@@ -154,6 +160,34 @@
           "url" : "https://github.com/kolunmi/cl-cffi-gdk-pixbuf.git",
           "commit" : "b8bf37fb111c434e1adaa242044c03408940ea37",
           "dest" : "cl-cffi-gdk-pixbuf"
+        }
+      ]
+    },
+    {
+      "name": "ripgrep",
+      "buildsystem": "simple",
+      "build-options": {
+        "env": {
+          "CARGO_HOME": "/run/build/ripgrep/cargo"
+        }
+      },
+      "build-commands": [
+        "cargo --offline fetch --manifest-path Cargo.toml --verbose",
+        "cargo build --offline --release --all-features --verbose",
+        "install -Dm755 ./target/release/rg -t \"${FLATPAK_DEST}\"/bin"
+      ],
+      "sources": [
+        "rg-cargo-sources.json",
+        {
+          "type": "git",
+          "url": "https://github.com/burntsushi/ripgrep",
+          "commit": "af60c2de9d85e7f3d81c78601669468cf02dabab",
+          "tag": "15.1.0",
+          "x-checker-data": {
+            "type": "anitya",
+            "tag-template": "$version",
+            "project-id": 15461
+          }
         }
       ]
     },

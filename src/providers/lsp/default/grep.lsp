@@ -32,13 +32,8 @@
             "#9141acaa"
             "#6f8396aa")))
 
-(defvar *possible-rg-bins*
-  '("rg"
-    "/var/home/linuxbrew/.linuxbrew/bin/rg"))
-(defun make-grep-cmd (bin word)
-  (list "flatpak-spawn"
-        "--host"
-        bin
+(defun make-grep-cmd (word)
+  (list "rg"
         ;; From ripgrep manual: This flag prints the file path above clusters of
         ;; matches from each file instead of printing the file path as a prefix
         ;; for each matched line.
@@ -132,12 +127,7 @@
            (strlen (length str)))
       (unless (>= strlen *min-query-length*)
         (return-from query))
-      (labels ((run-cmd ()
-                 (loop for bin in *possible-rg-bins*
-                       when (saturn:flatpak-spawn-host-bin-exists bin)
-                         return (uiop:launch-program (make-grep-cmd bin str)
-                                                     :output :stream)))
-               (populate-buffer-line (buffer cursor line match-offset match-color)
+      (labels ((populate-buffer-line (buffer cursor line match-offset match-color)
                  (let* ((start-seq (subseq line 0 match-offset))
                         (tag-seq (subseq line match-offset (+ match-offset strlen)))
                         (end-seq (format nil "~a~%" (subseq line (+ match-offset strlen))))
@@ -171,7 +161,10 @@
                            buffer))
                   store provider))
                (thread ()
-                 (let ((process (run-cmd)))
+                 (let ((process
+                         (ignore-errors
+                          (uiop:launch-program (make-grep-cmd str)
+                                               :output :stream))))
                    (unless process
                      (return-from thread))
                    (with-open-stream (s (uiop:process-info-output process))
