@@ -62,7 +62,6 @@
             <style>
               <class name=\"title-4\"/>
             </style>
-            <property name=\"margin-end\">15</property>
             <property name=\"halign\">end</property>
             <property name=\"ellipsize\">middle</property>
             <binding name=\"label\">
@@ -72,6 +71,15 @@
                 </lookup>
               </lookup>
             </binding>
+          </object>
+        </child>
+        <child>
+          <object class=\"GtkButton\">
+            <style>
+              <class name=\"flat\"/>
+            </style>
+            <property name=\"icon-name\">folder-open-symbolic</property>
+            <property name=\"action-name\">fs.open-uri-parent-dir</property>
           </object>
         </child>
       </object>
@@ -85,6 +93,23 @@
 (defmethod g:object-instance-init :after
     ((subclass (eql (find-class 'fs-result-list-item))) instance data)
   (declare (ignore class data))
+  (let ((open-uri-parent-dir-action
+          (let ((action (g:simple-action-new "open-uri-parent-dir")))
+            (g:signal-connect action "activate"
+                              (lambda (action param)
+                                (let* ((result (g:object-property instance "item"))
+                                       (path (g:object-data result "path"))
+                                       (parent (uiop:pathname-directory-pathname path))
+                                       (namestring (uiop:unix-namestring parent)))
+                                  (ignore-errors
+                                   (uiop:run-program (list "flatpak-spawn"
+                                                           "--host"
+                                                           "xdg-open"
+                                                           namestring))))))
+            action))
+        (action-group (make-instance 'g:simple-action-group)))
+    (g:action-map-add-action action-group open-uri-parent-dir-action)
+    (gtk:widget-insert-action-group instance "fs" action-group))
   (gtk:widget-init-template instance))
 (setf +list-bind-gtype+ "SaturnFsResultListItem")
 
