@@ -184,8 +184,9 @@
           "commit": "af60c2de9d85e7f3d81c78601669468cf02dabab",
           "tag": "15.1.0",
           "x-checker-data": {
-            "type": "git",
-            "url-template": "$version"
+            "type": "anitya",
+            "tag-template": "$version",
+            "project-id": 15461
           }
         }
       ]
