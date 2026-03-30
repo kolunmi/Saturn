@@ -173,7 +173,7 @@
       },
       "build-commands": [
         "cargo --offline fetch --manifest-path Cargo.toml --verbose",
-        "cargo build --offline --release --all-features",
+        "cargo build --offline --release --all-features --verbose",
         "install -Dm755 ./target/release/rg -t \"${FLATPAK_DEST}\"/bin"
       ],
       "sources": [
